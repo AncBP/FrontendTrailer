@@ -15,10 +15,10 @@ import vehiculos from "../assets/vehiculos.png"
 
 // Define aquí los roles permitidos por sección
 const accessControl = {
-  dashboard: ['Administrador', 'Usuario', 'Contratista'],
-  ordenes: ['Administrador', 'Contratista'],
+  dashboard: ['Administrador', 'Usuario', 'Contratista','Mecánico','Personal de Empresa','Jefe de Compra','Director de Mantenimiento','Conductor','Coordinador de Operaciones'],
+  ordenes: ['Administrador', 'Contratista','Mecánico','Personal de Empresa','Coordinador de Operaciones','Conductor'],
   usuarios: ['Administrador'],
-  repuestos: ['Administrador', 'Contratista'],
+  repuestos: ['Administrador'],
   proveedores: ['Administrador'],
   clientes:['Administrador'],
   conductores:['Administrador'],

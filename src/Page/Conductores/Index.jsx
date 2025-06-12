@@ -93,7 +93,7 @@ const Conductores = () => {
         phoneNumber: nuevoConductores.telefono,
         documentType: nuevoConductores.document.documentType,
         documentNumber: nuevoConductores.document.number,
-        active: true // Add the required active field
+        
       };
 
       if (modo === 'editar') {

@@ -77,22 +77,22 @@ const NuevaOrdenTrabajo = () => {
 
 
     function toDisplayDate(fechaISO) {
-    if (!fechaISO) return '';
+        if (!fechaISO) return '';
 
-    try {
-        const fecha = new Date(fechaISO);
-        if (isNaN(fecha.getTime())) return '';
+        try {
+            const fecha = new Date(fechaISO);
+            if (isNaN(fecha.getTime())) return '';
 
-        const día = String(fecha.getDate()).padStart(2, '0');
-        const mes = String(fecha.getMonth() + 1).padStart(2, '0');
-        const año = fecha.getFullYear();
+            const día = String(fecha.getDate()).padStart(2, '0');
+            const mes = String(fecha.getMonth() + 1).padStart(2, '0');
+            const año = fecha.getFullYear();
 
-        return `${día}/${mes}/${año}`;
-    } catch (error) {
-        console.error('Error formateando fecha:', error);
-        return '';
+            return `${día}/${mes}/${año}`;
+        } catch (error) {
+            console.error('Error formateando fecha:', error);
+            return '';
+        }
     }
-}
     function toInputDate(fechaISO) {
         if (!fechaISO) return '';
 
@@ -113,7 +113,7 @@ const NuevaOrdenTrabajo = () => {
         }
     }
 
-  
+
     function formatearFechaLocal(fechaISO) {
         if (!fechaISO) return '';
 
@@ -210,26 +210,27 @@ const NuevaOrdenTrabajo = () => {
                     throw new Error('No se recibieron datos de la orden');
                 }
 
-                // Llenar el formulario
+                const isTrabajoRealizado = data.orderStatus?.idOrderStatus === 'c8cc358e-3a33-408c-bb35-41aaf0ed2853';
+
                 setFormulario(prev => ({
                     ...prev,
                     numeroOrden: data.orderNumber || '',
                     fechaCreacion: data.createdAt,
                     horaCreacion: formatearHoraLocal(data.createdAt),
 
-                    
-                    fechaSalida: toInputDate(data.outDate),
-                    horaSalida: formatearHoraLocal(data.outDate),
 
-                    
+                    fechaSalida: isTrabajoRealizado ? toInputDate(data.outDate) : '',
+                    horaSalida: isTrabajoRealizado ? formatearHoraLocal(data.outDate) : '',
+
+
                     tipoServicio: data.serviceTypes?.map(st => st.idServiceType.toString()) || [],
                     orderStatusId: data.orderStatus?.idOrderStatus?.toString() || '',
 
-                    
+
                     cliente: data.client?.idClient || '',
                     vehicule: data.vehicule?.idVehicule || '',
 
-                    
+
                     nombreCliente: data.client?.name || '',
                     tipoDocCliente: data.client?.document?.documentType?.idDocumentType || '',
                     numeroIdCliente: data.client?.document?.documentNumber || '',
@@ -242,7 +243,7 @@ const NuevaOrdenTrabajo = () => {
                     apellidoConductor: data.vehicule?.driver?.lastName || '',
                     telefonoConductor: data.vehicule?.driver?.phoneNumber || '',
 
-                    
+
                     numeroCotizacion: data.pricings?.[0]?.pricingNumber || '',
                     fechaCotizacion: toInputDate(data.pricings?.[0]?.pricingDate),
                     cotizadoPor: data.pricings?.[0]?.pricedBy?.idUser || '',
@@ -333,8 +334,6 @@ const NuevaOrdenTrabajo = () => {
         const errores = [];
 
         if (!formulario.numeroOrden) errores.push('Número de orden es requerido');
-        if (!formulario.fechaSalida) errores.push('Fecha de salida es requerida');
-        if (!formulario.horaSalida) errores.push('Hora de salida es requerida');
         if (!formulario.orderStatusId) errores.push('Estado de la orden es requerido');
         if (!formulario.tipoVehiculo) errores.push('Tipo de vehículo es requerido');
         if (!formulario.placaCabezote) errores.push('Placa del cabezote es requerida');
@@ -486,26 +485,29 @@ const NuevaOrdenTrabajo = () => {
             }
         };
 
-        // Totales calculados
+
         const totalesCalculados = calcularTotales();
 
-        // CORRECCIÓN: Procesar serviceTypes - mantener como UUIDs (strings)
+
         const serviceTypesValidos = formulario.tipoServicio
             .filter(st => st && st !== '' && st !== 'undefined' && st !== 'null')
-            .map(st => st.toString()) // Mantener como string (UUID)
+            .map(st => st.toString())
             .filter(st => st.length > 0);
 
-        // CORRECCIÓN: Procesar orderStatus - mantener como UUID (string)
+
         const orderStatusValido = formulario.orderStatusId && formulario.orderStatusId !== ''
-            ? formulario.orderStatusId.toString() // Mantener como string (UUID)
+            ? formulario.orderStatusId.toString()
             : null;
 
 
 
-        // Construir payload
+        const isTrabajoRealizado = formulario.orderStatusId === 'c8cc358e-3a33-408c-bb35-41aaf0ed2853';
+
         const payloadOrder = {
             orderNumber: formulario.numeroOrden,
-            outDate: crearFechaValida(formulario.fechaSalida, formulario.horaSalida),
+            outDate: isTrabajoRealizado
+                ? crearFechaValida(formulario.fechaSalida, formulario.horaSalida)
+                : null,
             orderStatus: orderStatusValido,
             serviceTypes: serviceTypesValidos,
             client: formulario.cliente,
@@ -860,7 +862,13 @@ const NuevaOrdenTrabajo = () => {
                                         onChange={handleCambioFormulario}
                                         name="fechaSalida"
                                         type="date"
-                                        className="w-full p-2 border border-gray-300 rounded-l"
+                                        disabled={formulario.orderStatusId !== 'c8cc358e-3a33-408c-bb35-41aaf0ed2853'}
+                                        className={`w-full p-2 border rounded 
+                                         ${formulario.orderStatusId === 'c8cc358e-3a33-408c-bb35-41aaf0ed2853'
+                                                ? 'border-gray-300 bg-white' 
+                                                : 'border-gray-300 bg-gray-100 text-gray-400' 
+                                            }`
+                                        }
                                     />
                                 </div>
                             </div>
@@ -871,7 +879,13 @@ const NuevaOrdenTrabajo = () => {
                                     name="horaSalida"
                                     value={formulario.horaSalida}
                                     onChange={handleCambioFormulario}
-                                    className="w-full p-2 border border-gray-300 rounded"
+                                    disabled={formulario.orderStatusId !== 'c8cc358e-3a33-408c-bb35-41aaf0ed2853'}
+                                    className={`w-full p-2 border rounded
+                                     ${formulario.orderStatusId === 'c8cc358e-3a33-408c-bb35-41aaf0ed2853'
+                                            ? 'border-gray-300 bg-white'
+                                            : 'border-gray-300 bg-gray-100 text-gray-400' 
+                                        }`
+                                    }
                                 />
                             </div>
                         </div>

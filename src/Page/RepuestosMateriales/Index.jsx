@@ -136,7 +136,7 @@ const RepuestosYMateriales = () => {
       unidadMedida: item.measurementUnit,
       proveedor: item.provider?.idProvider || '',
       costoUnitario: item.unitaryCost,
-       tipoVehiculo: item.type,
+      tipoVehiculo: item.type,
       active: item.active,
     });
     setModo('editar');
@@ -310,19 +310,31 @@ const RepuestosYMateriales = () => {
                     className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-               
+
               </div>
               <div className="flex gap-x-4 mb-4">
                 <div className="w-1/2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Unidad de medida *</label>
-                  <input
+                  <select
                     value={nuevoRepuesto.unidadMedida}
                     onChange={handleChange}
                     name="unidadMedida"
                     required
-                    type="text"
                     className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+                  >
+                    <option value="">Selecciona la unidad de medida</option>
+                    <option value="unidad">Unidad</option>
+                    <option value="kilo">Kilo</option>
+                    <option value="litro">Litro</option>
+                    <option value="metro">Metro</option>
+                    <option value="paquete">Paquete</option>
+                    <option value="galon">Galón</option>
+                    <option value="caja">Caja</option>
+                    <option value="docena">Docena</option>
+                    <option value="rollo">Rollo</option>
+                    <option value="bolsa">Bolsa</option>
+
+                  </select>
                 </div>
 
                 <div className="w-1/2">
@@ -359,13 +371,13 @@ const RepuestosYMateriales = () => {
                 </div>
                 <div className="w-1/2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tipo de vehículo
+                    Uso final *
                   </label>
                   <select
                     name="tipoVehiculo"
                     value={nuevoRepuesto.tipoVehiculo}
                     onChange={handleChange}
-                     className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Selecciona tipo de vehículo</option>
                     {vehicleTypeOptions.map(vt => (
