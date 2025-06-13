@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { FaBell, FaUserCircle, FaSignOutAlt } from 'react-icons/fa';
-import Logo from "../assets/Logo_sin_fondo.png";
+import Logo from "../assets/Logo sin fondo.png";
 
 
 export default function Topbar({ collapsed, user, onLogout }) {

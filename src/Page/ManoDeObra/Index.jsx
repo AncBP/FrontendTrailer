@@ -353,7 +353,7 @@ const ManoDeObra = () => {
                   >
                     <option value="">Selecciona contratista</option>
                     {contratista
-                      .filter(u => u.role?.name === 'Contratista')
+                      .filter(u => ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name))
                       .map(u => (
                         <option key={u.idUser} value={u.idUser}>
                           {u.firstName} {u.lastName}

@@ -25,7 +25,7 @@ ChartJS.register(
 
 const API_URL = 'https://api.trailers.trailersdelcaribe.net/api';
 
-const Dashboard = () => {
+const Dashboard = ({ user }) => {
   const [clientesActivos, setClientesActivos] = useState(0);
   const [ordenesActivas, setOrdenesActivas] = useState(0);
   const [tiposServicioCount, setTiposServicioCount] = useState(0);
@@ -50,15 +50,15 @@ const Dashboard = () => {
   const lineOptions = {
     responsive: true,
     maintainAspectRatio: false,
-    plugins: { 
+    plugins: {
       legend: { display: true },
       tooltip: {
         mode: 'index',
         intersect: false,
       }
     },
-    scales: { 
-      y: { 
+    scales: {
+      y: {
         beginAtZero: true,
         ticks: {
           stepSize: 1
@@ -79,8 +79,8 @@ const Dashboard = () => {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { 
-        display: true, 
+      legend: {
+        display: true,
         position: 'right',
         labels: {
           usePointStyle: true,
@@ -88,16 +88,16 @@ const Dashboard = () => {
           font: {
             size: 12
           },
-          generateLabels: function(chart) {
+          generateLabels: function (chart) {
             const data = chart.data;
             if (data.labels.length && data.datasets.length) {
               const dataset = data.datasets[0];
               const total = dataset.data.reduce((a, b) => a + b, 0);
-              
+
               return data.labels.map((label, i) => {
                 const value = dataset.data[i];
                 const percentage = total > 0 ? Math.round((value / total) * 100) : 0;
-                
+
                 return {
                   text: `${label}: ${value} (${percentage}%)`,
                   fillStyle: dataset.backgroundColor[i],
@@ -114,7 +114,7 @@ const Dashboard = () => {
       },
       tooltip: {
         callbacks: {
-          label: function(context) {
+          label: function (context) {
             const label = context.label || '';
             const value = context.parsed;
             const total = context.dataset.data.reduce((a, b) => a + b, 0);
@@ -137,7 +137,9 @@ const Dashboard = () => {
           { data: statuses }
         ] = await Promise.all([
           axios.get(`${API_URL}/client`),
-          axios.get(`${API_URL}/order`),
+          axios.get(`${API_URL}/order`, {
+            params: user?.idUser ? { userId: user.idUser } : {}
+          }),
           axios.get(`${API_URL}/service-type`),
           axios.get(`${API_URL}/order-status`),
         ]);
@@ -147,36 +149,36 @@ const Dashboard = () => {
         setTiposServicioCount(svcTypes.length || 0);
         setEstadosCount(statuses.length || 0);
 
-        
+
         const allOrders = Array.isArray(ordersResp.data) ? ordersResp.data : [];
         setOrdenes(allOrders);
 
 
-       
+
         const totalPagesCalc = Math.ceil(allOrders.length / itemsPerPage);
         setTotalPages(totalPagesCalc);
-        
-        
+
+
         const startIndex = (currentPage - 1) * itemsPerPage;
         const endIndex = startIndex + itemsPerPage;
         setOrdenesRecientes(allOrders.slice(startIndex, endIndex));
 
-        
+
         const cotPend = allOrders.filter(
           o => o.orderStatus?.name?.toLowerCase().includes('pendiente') ||
-               o.orderStatus?.name?.toLowerCase().includes('cotizacion') ||
-               o.orderStatus?.name?.toLowerCase().includes('cotización')
+            o.orderStatus?.name?.toLowerCase().includes('cotizacion') ||
+            o.orderStatus?.name?.toLowerCase().includes('cotización')
         ).length;
         setCotPendientes(cotPend);
 
-       
+
         const ordenesConFechas = allOrders.filter(o => {
           const hasOutDate = o.outDate;
           const hasCreatedDate = o.createdAt;
           return hasOutDate && hasCreatedDate;
         });
 
-      
+
 
         if (ordenesConFechas.length > 0) {
           const tiempos = ordenesConFechas.map(o => {
@@ -184,22 +186,22 @@ const Dashboard = () => {
             const fechaFin = new Date(o.outDate);
             const diffTime = Math.abs(fechaFin - fechaInicio);
             const diasDiferencia = diffTime / (1000 * 60 * 60 * 24);
-            
-            
-            
-            return diasDiferencia;
-          }).filter(tiempo => tiempo >= 0 && tiempo < 365); 
 
-          const promedioDias = tiempos.length > 0 
-            ? tiempos.reduce((a, b) => a + b, 0) / tiempos.length 
+
+
+            return diasDiferencia;
+          }).filter(tiempo => tiempo >= 0 && tiempo < 365);
+
+          const promedioDias = tiempos.length > 0
+            ? tiempos.reduce((a, b) => a + b, 0) / tiempos.length
             : 0;
-          
-         
+
+
           setTiempoPromedio(promedioDias > 0 ? promedioDias.toFixed(1) : '0.0');
         } else {
-          
-         
-          
+
+
+
           const ordenesConActualizacion = allOrders.filter(o => {
             const hasCreatedDate = o.createdAt;
             const hasUpdatedDate = o.updatedAt;
@@ -215,16 +217,16 @@ const Dashboard = () => {
               const fechaFin = new Date(o.updatedAt);
               const diffTime = Math.abs(fechaFin - fechaInicio);
               const diasDiferencia = diffTime / (1000 * 60 * 60 * 24);
-              
+
               console.log(`Orden ${o.orderNumber || o.idOrder}: Procesamiento = ${diasDiferencia.toFixed(1)} días`);
-              
+
               return diasDiferencia;
             }).filter(tiempo => tiempo > 0 && tiempo < 365);
 
-            const promedioActualizacion = tiemposActualizacion.length > 0 
-              ? tiemposActualizacion.reduce((a, b) => a + b, 0) / tiemposActualizacion.length 
+            const promedioActualizacion = tiemposActualizacion.length > 0
+              ? tiemposActualizacion.reduce((a, b) => a + b, 0) / tiemposActualizacion.length
               : 0;
-            
+
             console.log('Tiempo promedio de procesamiento:', promedioActualizacion);
             setTiempoPromedio(promedioActualizacion > 0 ? promedioActualizacion.toFixed(1) : '0.0');
           } else {
@@ -259,10 +261,10 @@ const Dashboard = () => {
           });
         }
 
-       
+
         const currentYear = new Date().getFullYear();
         const ordersByMonth = Array(12).fill(0);
-        
+
         allOrders.forEach(o => {
           if (o.createdAt) {
             const fecha = new Date(o.createdAt);
@@ -292,7 +294,7 @@ const Dashboard = () => {
 
         // Gráfico de ventas por mes
         const ventasByMonth = Array(12).fill(0);
-        
+
         allOrders.forEach(o => {
           if (o.createdAt) {
             const fecha = new Date(o.createdAt);
@@ -309,7 +311,7 @@ const Dashboard = () => {
               } else if (o.price) {
                 total = Number(o.price);
               }
-              
+
               if (total > 0) {
                 ventasByMonth[mes] += total;
               }
@@ -335,12 +337,12 @@ const Dashboard = () => {
         });
 
       } catch (e) {
-       
+
         setTiempoPromedio('Error');
       }
     }
     fetchMetrics();
-  }, [currentPage]); 
+  }, [currentPage]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -384,8 +386,8 @@ const Dashboard = () => {
             <div>
               <h2 className="text-lg font-semibold">Tiempo Promedio</h2>
               <p className="text-3xl font-bold mt-2">
-                {tiempoPromedio === 'N/A' || tiempoPromedio === 'Error' 
-                  ? tiempoPromedio 
+                {tiempoPromedio === 'N/A' || tiempoPromedio === 'Error'
+                  ? tiempoPromedio
                   : `${tiempoPromedio} días`
                 }
               </p>
@@ -495,7 +497,7 @@ const Dashboard = () => {
             </tbody>
           </table>
         </div>
-        
+
         {/* Controles de paginación */}
         {totalPages > 1 && (
           <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-between">
@@ -503,15 +505,14 @@ const Dashboard = () => {
               <button
                 onClick={() => handlePageChange(currentPage - 1)}
                 disabled={currentPage === 1}
-                className={`px-3 py-1 rounded text-sm ${
-                  currentPage === 1
+                className={`px-3 py-1 rounded text-sm ${currentPage === 1
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'bg-blue-500 text-white hover:bg-blue-600'
-                }`}
+                  }`}
               >
                 Anterior
               </button>
-              
+
               <div className="flex items-center space-x-1">
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   let pageNum;
@@ -524,36 +525,34 @@ const Dashboard = () => {
                   } else {
                     pageNum = currentPage - 2 + i;
                   }
-                  
+
                   return (
                     <button
                       key={pageNum}
                       onClick={() => handlePageChange(pageNum)}
-                      className={`px-3 py-1 rounded text-sm ${
-                        pageNum === currentPage
+                      className={`px-3 py-1 rounded text-sm ${pageNum === currentPage
                           ? 'bg-blue-500 text-white'
                           : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                      }`}
+                        }`}
                     >
                       {pageNum}
                     </button>
                   );
                 })}
               </div>
-              
+
               <button
                 onClick={() => handlePageChange(currentPage + 1)}
                 disabled={currentPage === totalPages}
-                className={`px-3 py-1 rounded text-sm ${
-                  currentPage === totalPages
+                className={`px-3 py-1 rounded text-sm ${currentPage === totalPages
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'bg-blue-500 text-white hover:bg-blue-600'
-                }`}
+                  }`}
               >
                 Siguiente
               </button>
             </div>
-            
+
             <div className="text-sm text-gray-500">
               Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, ordenes.length)} de {ordenes.length}
             </div>

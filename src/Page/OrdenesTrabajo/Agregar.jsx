@@ -5,19 +5,45 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
 
-const NuevaOrdenTrabajo = () => {
+const NuevaOrdenTrabajo = ({ user }) => {
     const { id } = useParams();
     const isEdit = Boolean(id);
+    const rolesSoloManoObra = ["Colaborador", "Contratista", "Mecánico"];
+    const soloPuedeEditarManoObra = isEdit && user && rolesSoloManoObra.includes(user.role.name);
+    const rolesSoloRepuestos = ["Almacenista", "Auxiliar Administrativo"];
+    const soloPuedeEditarRepuestos = isEdit && user && rolesSoloRepuestos.includes(user.role.name);
     const API_URL = 'https://api.trailers.trailersdelcaribe.net/api';
     const navigate = useNavigate();
 
-    const [secciones, setSecciones] = useState({
-        infoOrden: true,
-        infoCliente: false,
-        infoCotizacion: false,
-        infoVehiculo: false,
-        repuestosMateriales: false,
-        manoObra: false
+    const [secciones, setSecciones] = useState(() => {
+        if (soloPuedeEditarRepuestos) {
+            return {
+                infoOrden: false,
+                infoCliente: false,
+                infoCotizacion: false,
+                infoVehiculo: false,
+                repuestosMateriales: true,
+                manoObra: false
+            };
+        } else if (soloPuedeEditarManoObra) {
+            return {
+                infoOrden: false,
+                infoCliente: false,
+                infoCotizacion: false,
+                infoVehiculo: false,
+                repuestosMateriales: false,
+                manoObra: true
+            };
+        } else {
+            return {
+                infoOrden: true,
+                infoCliente: false,
+                infoCotizacion: false,
+                infoVehiculo: false,
+                repuestosMateriales: false,
+                manoObra: false
+            };
+        }
     });
 
     const [formulario, setFormulario] = useState({
@@ -800,7 +826,9 @@ const NuevaOrdenTrabajo = () => {
             <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
                 <div
                     className="bg-white p-4 flex justify-between items-center cursor-pointer"
-                    onClick={() => toggleSeccion('infoOrden')}
+                    onClick={() => {
+                        if (!soloPuedeEditarRepuestos && !soloPuedeEditarManoObra) toggleSeccion('infoOrden')
+                    }}
                 >
                     <h2 className="text-lg font-semibold text-blue-800">Información de la Orden</h2>
                     {secciones.infoOrden ? <FaChevronUp /> : <FaChevronDown />}
@@ -865,8 +893,8 @@ const NuevaOrdenTrabajo = () => {
                                         disabled={formulario.orderStatusId !== 'c8cc358e-3a33-408c-bb35-41aaf0ed2853'}
                                         className={`w-full p-2 border rounded 
                                          ${formulario.orderStatusId === 'c8cc358e-3a33-408c-bb35-41aaf0ed2853'
-                                                ? 'border-gray-300 bg-white' 
-                                                : 'border-gray-300 bg-gray-100 text-gray-400' 
+                                                ? 'border-gray-300 bg-white'
+                                                : 'border-gray-300 bg-gray-100 text-gray-400'
                                             }`
                                         }
                                     />
@@ -883,7 +911,7 @@ const NuevaOrdenTrabajo = () => {
                                     className={`w-full p-2 border rounded
                                      ${formulario.orderStatusId === 'c8cc358e-3a33-408c-bb35-41aaf0ed2853'
                                             ? 'border-gray-300 bg-white'
-                                            : 'border-gray-300 bg-gray-100 text-gray-400' 
+                                            : 'border-gray-300 bg-gray-100 text-gray-400'
                                         }`
                                     }
                                 />
@@ -938,7 +966,9 @@ const NuevaOrdenTrabajo = () => {
             <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
                 <div
                     className="bg-white p-4 flex justify-between items-center cursor-pointer"
-                    onClick={() => toggleSeccion('infoCliente')}
+                    onClick={() => {
+                        if (!soloPuedeEditarRepuestos && !soloPuedeEditarManoObra) toggleSeccion('infoCliente')
+                    }}
                 >
                     <h2 className="text-lg font-semibold text-blue-800">Información del cliente</h2>
                     {secciones.infoCliente ? <FaChevronUp /> : <FaChevronDown />}
@@ -1040,7 +1070,9 @@ const NuevaOrdenTrabajo = () => {
             <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
                 <div
                     className="bg-white p-4 flex justify-between items-center cursor-pointer"
-                    onClick={() => toggleSeccion('infoCotizacion')}
+                    onClick={() => {
+                        if (!soloPuedeEditarRepuestos && !soloPuedeEditarManoObra) toggleSeccion('infoCotizacion')
+                    }}
                 >
                     <h2 className="text-lg font-semibold text-blue-800">Información de cotizacion de factura</h2>
                     {secciones.infoCotizacion ? <FaChevronUp /> : <FaChevronDown />}
@@ -1124,7 +1156,9 @@ const NuevaOrdenTrabajo = () => {
             <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
                 <div
                     className="bg-white p-4 flex justify-between items-center cursor-pointer"
-                    onClick={() => toggleSeccion('infoVehiculo')}
+                    onClick={() => {
+                        if (!soloPuedeEditarRepuestos && !soloPuedeEditarManoObra) toggleSeccion('infoVehiculo')
+                    }}
                 >
                     <h2 className="text-lg font-semibold text-blue-800">Información del vehículo</h2>
                     {secciones.infoVehiculo ? <FaChevronUp /> : <FaChevronDown />}
@@ -1244,7 +1278,9 @@ const NuevaOrdenTrabajo = () => {
             <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
                 <div
                     className="bg-white p-4 flex justify-between items-center cursor-pointer"
-                    onClick={() => toggleSeccion('repuestosMateriales')}
+                    onClick={() => {
+                        if (!soloPuedeEditarManoObra) toggleSeccion('repuestosMateriales')
+                    }}
                 >
                     <h2 className="text-lg font-semibold text-blue-800">
                         Repuestos y Materiales
@@ -1442,7 +1478,9 @@ const NuevaOrdenTrabajo = () => {
             <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
                 <div
                     className="bg-white p-4 flex justify-between items-center cursor-pointer"
-                    onClick={() => toggleSeccion('manoObra')}
+                    onClick={() => {
+                        if (!soloPuedeEditarManoObra) toggleSeccion('manoObra')
+                    }}
                 >
                     <h2 className="text-lg font-semibold text-blue-800">Mano de Obra</h2>
                     {secciones.manoObra ? <FaChevronUp /> : <FaChevronDown />}
@@ -1558,7 +1596,7 @@ const NuevaOrdenTrabajo = () => {
                                                 >
                                                     <option value="">Selecciona contratista</option>
                                                     {userOptions
-                                                        .filter(u => u.role?.name === 'Contratista')
+                                                        .filter(u => ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name))
                                                         .map(u => (
                                                             <option key={u.idUser} value={u.idUser}>
                                                                 {u.firstName + ' ' + u.lastName}

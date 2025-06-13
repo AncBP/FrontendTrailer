@@ -24,9 +24,29 @@ function App() {
     setUser(foundUser);
   };
 
-  
-  const hasRole = (...allowed) =>
-    user && allowed.includes(user.role.name);
+
+  const routeAccess = {
+    dashboard: [
+      "Administrador","Usuario", "Contratista", "Mecánico", "Colaborador", "Almacenista", "Auxiliar Administrativo", "Coordinador de Operaciones", "Cliente Externo"
+    ],
+    usuarios: ["Administrador"],
+    clientes: ["Administrador", "Coordinador de Operaciones"],
+    conductores: ["Administrador", "Coordinador de Operaciones"],
+    vehiculos: ["Administrador", "Coordinador de Operaciones"],
+    manoDeObra: ["Administrador", "Coordinador de Operaciones","Contratista", "Mecánico", "Colaborador"],
+    contactos: ["Administrador", 'Coordinador de Operaciones'],
+    ordenes: [
+      "Administrador", "Contratista", "Mecánico", "Colaborador", "Usuario", "Coordinador de Operaciones", "Cliente Externo", "Almacenista", "Auxiliar Administrativo"
+    ],
+    AgregarOrden: [
+      "Administrador", "Contratista", "Mecánico", "Colaborador","Coordinador de Operaciones", "Cliente Externo", "Almacenista", "Auxiliar Administrativo"
+    ],
+    repuestos: ["Administrador", "Almacenista", "Auxiliar Administrativo", "Coordinador de Operaciones"],
+    proveedores: ["Administrador", "Coordinador de Operaciones"]
+  };
+
+  const canRoute = (section) =>
+    user && routeAccess[section]?.includes(user.role.name);
 
   return (
     <Router>
@@ -41,7 +61,6 @@ function App() {
       />
 
       <Routes>
-      
         <Route
           path="/login"
           element={
@@ -56,19 +75,23 @@ function App() {
           path="/"
           element={
             user
-              ? <Layout user={user} onLogout={() => setUser(null)} />  
+              ? <Layout user={user} onLogout={() => setUser(null)} />
               : <Navigate to="/login" replace />
           }
         >
-      
           <Route index element={<Dashboard />} />
-          <Route path="dashboard" element={<Dashboard />} />
-
-          {/* Usuarios: solo Administrador */}
+          <Route
+            path="dashboard"
+            element={
+              canRoute("dashboard")
+                ? <Dashboard user={user} />
+                : <Navigate to="/login" replace />
+            }
+          />
           <Route
             path="usuarios"
             element={
-              hasRole("Administrador")
+              canRoute("usuarios")
                 ? <Usuarios />
                 : <Navigate to="/dashboard" replace />
             }
@@ -76,89 +99,85 @@ function App() {
           <Route
             path="clientes"
             element={
-              hasRole("Administrador")
+              canRoute("clientes")
                 ? <Cliente />
                 : <Navigate to="/dashboard" replace />
             }
           />
-           <Route
+          <Route
             path="conductores"
             element={
-              hasRole("Administrador")
+              canRoute("conductores")
                 ? <Conductores />
                 : <Navigate to="/dashboard" replace />
             }
           />
-           <Route
+          <Route
             path="vehiculos"
             element={
-              hasRole("Administrador")
+              canRoute("vehiculos")
                 ? <Vehiculos />
                 : <Navigate to="/dashboard" replace />
             }
           />
-           <Route
+          <Route
             path="manoDeObra"
             element={
-              hasRole("Administrador")
+              canRoute("manoDeObra")
                 ? <ManoDeObra />
                 : <Navigate to="/dashboard" replace />
             }
           />
-           <Route
+          <Route
             path="contactos"
             element={
-              hasRole("Administrador")
+              canRoute("contactos")
                 ? <Contactos />
                 : <Navigate to="/dashboard" replace />
             }
           />
-
-
-          {/* Órdenes: Contratista y Administrador */}
           <Route
             path="ordenes"
             element={
-              hasRole("Contratista", "Administrador")
-                ? <OrdenesTrabajo />
+              canRoute("ordenes")
+                ? <OrdenesTrabajo user={user} />
                 : <Navigate to="/dashboard" replace />
             }
           />
           <Route
             path="AgregarOrden"
             element={
-              hasRole("Contratista", "Administrador")
-                ? <AgregarOrden />
+              canRoute("AgregarOrden")
+                ? <AgregarOrden user={user} />
                 : <Navigate to="/dashboard" replace />
             }
           />
-          <Route path="/ordenes/:id/editar" 
-          element={hasRole("Contratista", "Administrador")
-                ? <AgregarOrden />
-                : <Navigate to="/dashboard" replace />} />
-
-          {/* Repuestos: Contratista y Administrador */}
+          <Route
+            path="/ordenes/:id/editar"
+            element={
+              canRoute("AgregarOrden")
+                ? <AgregarOrden user={user} />
+                : <Navigate to="/dashboard" replace />
+            }
+          />
           <Route
             path="repuestos"
             element={
-              hasRole("Contratista", "Administrador")
+              canRoute("repuestos")
                 ? <Repuestos />
                 : <Navigate to="/dashboard" replace />
             }
           />
-
-          {/* Proveedores: solo Administrador */}
           <Route
             path="proveedores"
             element={
-              hasRole("Administrador")
+              canRoute("proveedores")
                 ? <Proveedores />
                 : <Navigate to="/dashboard" replace />
             }
           />
         </Route>
 
-      
         <Route
           path="*"
           element={
