@@ -48,6 +48,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
     const [formulario, setFormulario] = useState({
         numeroOrden: '',
+        Asignado: '',
         fechaSalida: '',
         horaSalida: '',
         fechaCreacion: '',
@@ -243,6 +244,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     numeroOrden: data.orderNumber || '',
                     fechaCreacion: data.createdAt,
                     horaCreacion: formatearHoraLocal(data.createdAt),
+                    Asignado: data.assignTo?.idUser || null,
 
 
                     fechaSalida: isTrabajoRealizado ? toInputDate(data.outDate) : '',
@@ -356,7 +358,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
         });
     };
 
-    const validarFormularioCompleto = () => {
+    /*const validarFormularioCompleto = () => {
         const errores = [];
 
         if (!formulario.numeroOrden) errores.push('Número de orden es requerido');
@@ -397,7 +399,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
         });
 
         return errores;
-    };
+    };*/
 
     const calcularTotales = () => {
         const subtotalCostosRepuestos = repuestos.reduce(
@@ -490,12 +492,11 @@ const NuevaOrdenTrabajo = ({ user }) => {
     };
 
     const handleGuardar = async () => {
-        const errores = validarFormularioCompleto();
+        /*const errores = validarFormularioCompleto();
         if (errores.length) {
             errores.forEach((e) => toast.error(e));
             return;
-        }
-
+        }*/
 
         const crearFechaValida = (fecha, hora = '00:00:00') => {
             if (!fecha) return null;
@@ -511,74 +512,64 @@ const NuevaOrdenTrabajo = ({ user }) => {
             }
         };
 
-
         const totalesCalculados = calcularTotales();
 
-
         const serviceTypesValidos = formulario.tipoServicio
-            .filter(st => st && st !== '' && st !== 'undefined' && st !== 'null')
-            .map(st => st.toString())
-            .filter(st => st.length > 0);
-
+            ?.filter(st => st && st !== '' && st !== 'undefined' && st !== 'null')
+            .map(st => st?.toString())
+            .filter(st => st.length > 0) || null;
 
         const orderStatusValido = formulario.orderStatusId && formulario.orderStatusId !== ''
             ? formulario.orderStatusId.toString()
             : null;
 
-
-
         const isTrabajoRealizado = formulario.orderStatusId === 'c8cc358e-3a33-408c-bb35-41aaf0ed2853';
 
+        // --- NUEVO PAYLOAD ---
         const payloadOrder = {
-            orderNumber: formulario.numeroOrden,
+            orderNumber: formulario.numeroOrden ?? null,
+            assignTo: formulario.Asignado ?? null,
             outDate: isTrabajoRealizado
                 ? crearFechaValida(formulario.fechaSalida, formulario.horaSalida)
                 : null,
-            orderStatus: orderStatusValido,
-            serviceTypes: serviceTypesValidos,
-            client: formulario.cliente,
-            vehicule: formulario.vehicule,
+            orderStatus: orderStatusValido ?? null,
+            serviceTypes: serviceTypesValidos ?? null,
+            client: formulario.cliente && formulario.cliente !== '' ? formulario.cliente : null,
+            vehicule: formulario.vehicule && formulario.vehicule !== '' ? formulario.vehicule : null,
+
             billings: formulario.numeroFacturacion
                 ? [{
-                    billingNumber: formulario.numeroFacturacion,
-                    billingDate: crearFechaValida(formulario.fechaFacturacion),
-                    actNumber: formulario.numeroActaEntrega,
-                    billedBy: formulario.facturadoPor,
+                    billingNumber: formulario.numeroFacturacion ?? null,
+                    billingDate: crearFechaValida(formulario.fechaFacturacion) ?? null,
+                    actNumber: formulario.numeroActaEntrega ?? null,
+                    billedBy: formulario.facturadoPor ?? null,
                 }]
-                : [],
+                : null,
             pricings: formulario.numeroCotizacion
                 ? [{
-                    pricingNumber: formulario.numeroCotizacion,
-                    pricingDate: crearFechaValida(formulario.fechaCotizacion),
-                    pricedBy: formulario.cotizadoPor,
+                    pricingNumber: formulario.numeroCotizacion ?? null,
+                    pricingDate: crearFechaValida(formulario.fechaCotizacion) ?? null,
+                    pricedBy: formulario.cotizadoPor ?? null,
                 }]
-                : [],
-            sparePartMaterials: repuestos.map(r => ({
-                sparePartMaterial: r.idSparePartMaterial,
-                costoTotal: Number(r.costoTotal) || 0,
-                factorVenta: Number(r.factorVenta) || 0,
-                cantidad: Number(r.cantidad) || 0,
-                ventaUnitaria: Number(r.ventaUnitaria) || 0,
-                ventaTotal: Number(r.ventaTotal) || 0,
-            })),
-            manpowers: manoDeObra.map(m => ({
-                manpower: m.idManpower,
-                cantidad: Number(m.cantidad) || 0,
-                costoTotal: Number(m.totalCost) || 0,
-                factorVenta: Number(m.sellFactor) || 0,
-                ventaUnitaria: Number(m.unitSell) || 0,
-                ventaTotal: Number(m.totalSell) || 0,
-            })),
-            totals: totalesCalculados,
+                : null,
+            sparePartMaterials: repuestos.length > 0 ? repuestos.map(r => ({
+                sparePartMaterial: r.idSparePartMaterial ?? null,
+                costoTotal: r.costoTotal != null ? Number(r.costoTotal) : null,
+                factorVenta: r.factorVenta != null ? Number(r.factorVenta) : null,
+                cantidad: r.cantidad != null ? Number(r.cantidad) : null,
+                ventaUnitaria: r.ventaUnitaria != null ? Number(r.ventaUnitaria) : null,
+                ventaTotal: r.ventaTotal != null ? Number(r.ventaTotal) : null,
+            })) : null,
+            manpowers: manoDeObra.length > 0 ? manoDeObra.map(m => ({
+                manpower: m.idManpower ?? null,
+                cantidad: m.cantidad != null ? Number(m.cantidad) : null,
+                costoTotal: m.totalCost != null ? Number(m.totalCost) : null,
+                factorVenta: m.sellFactor != null ? Number(m.sellFactor) : null,
+                ventaUnitaria: m.unitSell != null ? Number(m.unitSell) : null,
+                ventaTotal: m.totalSell != null ? Number(m.totalSell) : null,
+            })) : null,
+            totals: totalesCalculados ?? null
         };
-
-        // Limpiar campos null/undefined/vacíos antes de enviar
-        if (!payloadOrder.orderStatus) delete payloadOrder.orderStatus;
-        if (!payloadOrder.serviceTypes || payloadOrder.serviceTypes.length === 0) delete payloadOrder.serviceTypes;
-        if (!payloadOrder.billings || payloadOrder.billings.length === 0) delete payloadOrder.billings;
-        if (!payloadOrder.pricings || payloadOrder.pricings.length === 0) delete payloadOrder.pricings;
-
-
 
         try {
             if (isEdit) {
@@ -594,6 +585,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
             toast.error(err.response?.data?.message || err.message || "Error guardando la orden");
         }
     };
+
 
     // Resto del código (funciones de repuestos, mano de obra, etc.)
     const agregarRepuesto = () => {
@@ -837,7 +829,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 {secciones.infoOrden && (
                     <div className="bg-white p-4 border-t border-gray-200">
                         {/* Número de orden */}
-                        <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Número de orden</label>
                                 <input
@@ -848,7 +840,26 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                     className="w-full p-2 border border-gray-300 rounded"
                                 />
                             </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Asignado a </label>
+                                <select
+                                    className="w-full p-2 border border-gray-300 rounded text-left "
+                                    value={formulario.Asignado}
+                                    onChange={handleCambioFormulario}
+                                    name='Asignado'
+                                >
+                                    <option value="">Selecciona contratista</option>
+                                    {userOptions
+                                        .filter(u => ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name))
+                                        .map(u => (
+                                            <option key={u.idUser} value={u.idUser}>
+                                                {u.firstName + ' ' + u.lastName}
+                                            </option>
+                                        ))}
+                                </select>
+                            </div>
                         </div>
+
 
                         {/* Solo para editar */}
                         {isEdit && (

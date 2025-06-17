@@ -14,7 +14,7 @@ const Vehiculos = () => {
         placaTrailer: '',
         kmSalida: '',
         tipoVehiculo: '',
-        conductor: ''
+        drivers: []
     };
 
     const [errorCabe, setErrorCabe] = useState("");
@@ -31,7 +31,7 @@ const Vehiculos = () => {
         placaTrailer: '',
         kmSalida: '',
         tipoVehiculo: '',
-        conductor: ''
+        drivers: []
     });
 
     const [busqueda, setBusqueda] = useState('');
@@ -80,9 +80,8 @@ const Vehiculos = () => {
                 placaTrailer: nuevoVehiculo.placaTrailer,
                 kmsSalida: Number(nuevoVehiculo.kmSalida) || 0,
                 vehiculeType: nuevoVehiculo.tipoVehiculo,
-                driver: nuevoVehiculo.conductor,
+                drivers: nuevoVehiculo.drivers,
             };
-
             if (modo === 'editar') {
                 await axios.patch(`${API_URL}/${nuevoVehiculo.idVehicule}`, payload);
                 toast.success('Vehículo editado correctamente');
@@ -115,7 +114,7 @@ const Vehiculos = () => {
             placaTrailer: v.placaTrailer || '',
             kmSalida: v.kmsSalida?.toString() || '',
             tipoVehiculo: v.vehiculeType?.idVehiculeType || '',
-            conductor: v.driver?.idDriver || '',
+            drivers: Array.isArray(v.drivers) ? v.drivers.map(d => d.idDriver) : [],
         });
         setModo('editar');
         setMostrarModal(true);
@@ -256,7 +255,9 @@ const Vehiculos = () => {
                                         {vehiculo.vehiculeType?.name || '—'}
                                     </td>
                                     <td className="py-3 text-sm">
-                                        {vehiculo.driver ? `${vehiculo.driver.firstName} ${vehiculo.driver.lastName}` : '—'}
+                                        {Array.isArray(vehiculo.drivers) && vehiculo.drivers.length
+                                            ? vehiculo.drivers.map(d => `${d.firstName} ${d.lastName}`).join(', ')
+                                            : '—'}
                                     </td>
                                     <td className="py-3 flex gap-2 justify-end">
                                         <button onClick={() => handleEditar(vehiculo)} className="p-1">
@@ -368,21 +369,26 @@ const Vehiculos = () => {
                             </div>
 
                             <div className="w-full mb-4">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Conductor *</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Conductores *</label>
                                 <select
-                                    name="conductor"
-                                    value={nuevoVehiculo.conductor}
-                                    onChange={handleChange}
+                                    name="drivers"
+                                    value={nuevoVehiculo.drivers}
+                                    onChange={e => {
+                                        const values = Array.from(e.target.selectedOptions, opt => opt.value);
+                                        setNuevoVehiculo({ ...nuevoVehiculo, drivers: values });
+                                    }}
+                                    multiple
                                     required
                                     className="w-full border border-gray-300 rounded-md p-2"
+                                    size={Math.min(drivers.length, 5)} // para que se vea bien
                                 >
-                                    <option value="">Selecciona un conductor</option>
                                     {drivers.map((driver) => (
                                         <option key={driver.idDriver} value={driver.idDriver}>
                                             {driver.firstName} {driver.lastName} - {driver.document?.documentType?.abbreviation} {driver.document?.documentNumber}
                                         </option>
                                     ))}
                                 </select>
+                                <span className="text-xs text-gray-500">Ctrl/Cmd + click para seleccionar varios</span>
                             </div>
 
                             <div className="flex justify-end space-x-3 mt-6">

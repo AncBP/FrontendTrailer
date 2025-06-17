@@ -168,7 +168,7 @@ const RepuestosYMateriales = () => {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <h1 className="text-2xl font-bold text-gray-700 mb-6">Repuestos y materiales</h1>
+      <h1 className="text-2xl font-bold text-gray-700 mb-6">Repuestos</h1>
 
       <div className="flex justify-between items-center mb-6 space-x-4">
 
@@ -215,7 +215,7 @@ const RepuestosYMateriales = () => {
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-        <h2 className="text-lg font-semibold text-gray-700 mb-4">Listado de repuestos y materiales</h2>
+        <h2 className="text-lg font-semibold text-gray-700 mb-4">Listado de repuestos </h2>
 
         <table className="w-full">
           <thead>
@@ -290,7 +290,7 @@ const RepuestosYMateriales = () => {
         <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-[700px] max-h-[90vh] ">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-semibold">{modo === 'agregar' ? 'Agregar repuestos y materiales' : 'Editar repuestos y material'}</h2>
+              <h2 className="text-xl font-semibold">{modo === 'agregar' ? 'Agregar Repuesto' : 'Editar Repuesto'}</h2>
               <button onClick={cerrarModal} className="text-gray-500 hover:text-gray-700 text-2xl leading-none">
                 &times;
               </button>
@@ -304,7 +304,6 @@ const RepuestosYMateriales = () => {
                     value={nuevoRepuesto.nombre}
                     onChange={handleChange}
                     name="nombre"
-                    disabled={modo === 'editar'}
                     required
                     type="text"
                     className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"

@@ -54,11 +54,12 @@ const OrdenesTrabajo = ({ user }) => {
   const filtrados = ordenes.filter(o => {
     const q = busqueda.toLowerCase();
     return (
-      o.orderNumber.toLowerCase().includes(q) ||
-      o.client.name.toLowerCase().includes(q) ||
-      o.orderStatus.name.toLowerCase().includes(q) ||
-      o.serviceTypes.map(st => st.name).join(' ').toLowerCase().includes(q) ||
-      new Date(o.createdAt).toLocaleString().toLowerCase().includes(q)
+      (o.orderNumber || '').toLowerCase().includes(q) ||
+      (o.client?.name || '').toLowerCase().includes(q) ||
+      (o.orderStatus?.name || '').toLowerCase().includes(q) ||
+      (Array.isArray(o.serviceTypes) ? o.serviceTypes.map(st => st?.name || '').join(' ') : '').toLowerCase().includes(q) ||
+      (o.createdAt ? new Date(o.createdAt).toLocaleString().toLowerCase() : '')
+        .includes(q)
     );
   });
 
@@ -143,18 +144,22 @@ const OrdenesTrabajo = ({ user }) => {
             {filtrados.length > 0 ? (
               filtrados.map((o) => (
                 <tr key={o.idOrder} className="border-t border-gray-100">
-                  <td className="py-3 text-sm text-yellow-800">{o.orderNumber}</td>
-                  <td className="py-3 text-sm text-blue-800">{o.client.name}</td>
+                  <td className="py-3 text-sm text-yellow-800">{o.orderNumber || '-'}</td>
+                  <td className="py-3 text-sm text-blue-800">{o.client?.name || '-'}</td>
                   <td className="py-3">
                     <span className="bg-blue-400 text-white text-sm rounded-full px-4 py-1">
-                      {o.orderStatus.name}
+                      {o.orderStatus?.name || '-'}
                     </span>
                   </td>
                   <td className="py-3 text-sm text-blue-600">
-                    {o.serviceTypes.map(st => st.name).join(', ')}
+                    {Array.isArray(o.serviceTypes)
+                      ? o.serviceTypes.map(st => st?.name || '').join(', ')
+                      : '-'}
                   </td>
                   <td className="py-3 text-sm text-gray-600">
-                    {new Date(o.createdAt).toLocaleString()}
+                    {o.createdAt
+                      ? new Date(o.createdAt).toLocaleString()
+                      : '-'}
                   </td>
                   <td className="py-3 flex gap-2 justify-end">
 
