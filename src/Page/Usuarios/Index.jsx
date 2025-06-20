@@ -63,7 +63,7 @@ const Usuarios = () => {
 
   const [busqueda, setBusqueda] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 4;
+  const itemsPerPage = 5;
 
 
   // Reset de página al cambiar búsqueda

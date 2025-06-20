@@ -54,7 +54,7 @@ const OrdenesTrabajo = ({ user }) => {
   const filtrados = ordenes.filter(o => {
     const q = busqueda.toLowerCase();
     return (
-      (o.orderNumber || '').toLowerCase().includes(q) ||
+      //(o.orderNumber || '').toLowerCase().includes(q) ||
       (o.client?.name || '').toLowerCase().includes(q) ||
       (o.orderStatus?.name || '').toLowerCase().includes(q) ||
       (Array.isArray(o.serviceTypes) ? o.serviceTypes.map(st => st?.name || '').join(' ') : '').toLowerCase().includes(q) ||

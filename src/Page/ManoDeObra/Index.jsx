@@ -100,7 +100,7 @@ const ManoDeObra = () => {
       const payload = {
         name: nuevoManoDeObra.nombre,
         type: nuevoManoDeObra.tipoVehiculo,
-        unitaryCost: parseFloat(nuevoManoDeObra.costoUnitario),
+        //unitaryCost: parseFloat(nuevoManoDeObra.costoUnitario),
       };
 
       if (modo === 'editar') {
@@ -131,7 +131,7 @@ const ManoDeObra = () => {
     setNuevoManoDeObra({
       idManPower: item.idManpower,
       nombre: item.name,
-      costoUnitario: item.unitaryCost,
+      //costoUnitario: item.unitaryCost,
       tipoVehiculo: item.type,
       active: item.active,
     });
@@ -225,7 +225,7 @@ const ManoDeObra = () => {
           <thead>
             <tr className="text-left">
               <th className="py-2 text-sm font-medium text-gray-600">Nombre</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Costo Unitario</th>
+              
               <th className="py-2 text-sm font-medium text-gray-600">Tipo de vehiculo</th>
               <th className="py-2"></th>
             </tr>
@@ -235,7 +235,7 @@ const ManoDeObra = () => {
               currentItems.map(Man => (
                 <tr key={Man.idManpower} className="border-t border-gray-100">
                   <td className="py-2">{Man.name}</td>
-                  <td className="py-2">${Man.unitaryCost?.toLocaleString() || ''}</td>
+                 
                   <td className="py-2">{Man.type || ''}</td>
                   <td className="py-2 flex gap-2 justify-end">
                   
@@ -316,26 +316,10 @@ const ManoDeObra = () => {
                     name="nombre"
                     required
                     className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={2} 
+                    rows={1} 
                   />
                 </div>
-                <div className="w-1/2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Costo unitario *</label>
-                  <input
-                    value={nuevoManoDeObra.costoUnitario}
-                    onChange={handleChange}
-                    name="costoUnitario"
-                    required
-                    type="number"
-                    className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-
-              <div className="flex gap-x-4 mb-4">
-               
-                <div className="w-full">
+                 <div className="w-1/2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Tipo de vehículo
                   </label>

@@ -12,6 +12,7 @@ import proveedores from "../assets/proveedor64.png";
 import listaIcon from "../assets/lista.png";
 import contactos from "../assets/agenda.png"
 import vehiculos from "../assets/vehiculos.png"
+import Insumos from '../Page/Insumos/Index';
 
 // Define aquí los roles permitidos por sección
 const accessControl = {
@@ -60,10 +61,8 @@ const accessControl = {
   ],
   manoDeObra: [
     'Administrador',
-    'Coordinador de Operaciones',
-    'Contratista',
-    'Mecánico',
-    'Colaborador'
+    'Coordinador de Operaciones'
+    
   ],
   contactos: [
     'Administrador',
@@ -72,6 +71,10 @@ const accessControl = {
   vehiculos: [
     'Administrador',
     'Coordinador de Operaciones'
+  ],
+  Insumos: [
+    'Administrador',
+    'coordinador de Operaciones'
   ]
 };
 
@@ -243,7 +246,20 @@ export default function Sidebar({ user }) {
                   }
                 >
                   <img src={compra} alt="Repuestos" className="w-5 flex-shrink-0" />
-                  {!collapsed && <span className="ml-2">Repuestos y Materiales</span>}
+                  {!collapsed && <span className="ml-2">Repuestos</span>}
+                </NavLink>
+              </li>
+            )}
+            {canAccess('Insumos') && (
+              <li>
+                <NavLink
+                  to="/insumos"
+                  className={({ isActive }) =>
+                    `flex items-center ${collapsed ? 'justify-center px-1' : 'px-3'} py-2 rounded text-black text-sm no-underline transition duration-200 hover:bg-white hover:font-bold ${isActive ? 'bg-white font-bold' : ''}`
+                  }
+                >
+                  <img src={compra} alt="Repuestos" className="w-5 flex-shrink-0" />
+                  {!collapsed && <span className="ml-2">Insumos</span>}
                 </NavLink>
               </li>
             )}

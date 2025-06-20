@@ -41,6 +41,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
             { text: "ORDEN DE TRABAJO", style: "header" },
             { text: `N°: ${orden.orderNumber || "Sin número"}`, style: "subheader" },
             "\n",
+
             { text: "INFORMACIÓN GENERAL", style: "section" },
             {
                 ul: [
@@ -48,12 +49,12 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                     `Fecha de Creación: ${formatDate(orden.createdAt)}`,
                     `Fecha de Salida: ${formatDate(orden.outDate)}`,
                     `Tipos de Servicio: ${isValidArray(orden.serviceTypes)
-                        ? orden.serviceTypes.map((st) => st?.name || "Sin nombre").join(", ")
+                        ? orden.serviceTypes.map(st => st.name).join(", ")
                         : "Sin servicios definidos"}`
                 ]
             },
             "\n",
-            // INFORMACIÓN DEL CLIENTE
+
             { text: "INFORMACIÓN DEL CLIENTE", style: "section" },
             {
                 ul: [
@@ -63,38 +64,49 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                 ]
             },
             "\n",
-            
 
-            "\n",
             { text: "INFORMACIÓN DEL VEHÍCULO", style: "section" },
             {
                 ul: [
                     `Placa Cabezote: ${orden.vehicule?.placaCabezote || "Sin placa"}`,
                     `Placa Trailer: ${orden.vehicule?.placaTrailer || "Sin placa trailer"}`,
                     `Tipo de Vehículo: ${orden.vehicule?.vehiculeType?.name || "No especificado"}`,
-                    `Kilometraje de Salida: ${orden.vehicule?.kmsSalida || "No registrado"}`,
-                    `Conductor: ${orden.vehicule?.driver
-                        ? `${orden.vehicule.driver.firstName || ""} ${orden.vehicule.driver.lastName || ""}`.trim()
+                    `Kilometraje de Salida: ${orden.vehicule?.kmsSalida ?? "No registrado"}`,
+                    `Conductor: ${orden.assignedDriver
+                        ? `${orden.assignedDriver.firstName} ${orden.assignedDriver.lastName}`
                         : "Sin conductor"
                     }`,
-                    `Teléfono Conductor: ${orden.vehicule?.driver?.phoneNumber || "Sin teléfono"}`
+                    `Teléfono Conductor: ${orden.assignedDriver?.phoneNumber || "Sin teléfono"}`
                 ]
             },
             "\n",
+
+            // REPUESTOS
             ...(isValidArray(orden.sparePartMaterials) ? [
-                { text: "REPUESTOS Y MATERIALES", style: "section" },
+                { text: "REPUESTOS Y MATERIALES", style: "section", margin: [0, 10, 0, 5] },
                 {
                     table: {
                         headerRows: 1,
-                        widths: ['*', '*', '*', '*', '*', '*', '*', '*'],
+                        widths: ['*', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto', 'auto'],
                         body: [
-                            ['Material', 'Tipo', 'Cantidad', 'Proveedor', 'Costo Unit.', 'Costo Total', 'Venta Unit.', 'Venta Total'],
+                            [
+                                'Material',
+                                'Tipo',
+                                'Cantidad',
+                                'Proveedor',
+                                'Costo Unit.',
+                                'Costo Total',
+                                'Venta Unit.',
+                                'Venta Total'
+                            ],
                             ...orden.sparePartMaterials.map(spm => [
                                 spm.sparePartMaterial?.name || 'Sin nombre',
                                 spm.sparePartMaterial?.type || 'Sin tipo',
-                                (spm.cantidad || 0).toString(),
-                                spm.sparePartMaterial?.provider?.name || 'Sin proveedor',
-                                formatCurrency(spm.sparePartMaterial?.unitaryCost),
+                                String(spm.cantidad || 0),
+                                // Usamos selectedProvider en lugar del anidado provider
+                                spm.selectedProvider?.name || 'Sin proveedor',
+                                // El costo que guardaste está en unitaryCost
+                                formatCurrency(spm.unitaryCost),
                                 formatCurrency(spm.costoTotal),
                                 formatCurrency(spm.ventaUnitaria),
                                 formatCurrency(spm.ventaTotal)
@@ -104,6 +116,8 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                 },
                 "\n"
             ] : []),
+
+            // MANO DE OBRA
             ...(isValidArray(orden.manpowers) ? [
                 { text: "MANO DE OBRA", style: "section" },
                 {
@@ -113,22 +127,26 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                         body: [
                             ['Descripción', 'Tipo', 'Cantidad', 'Contratista', 'Costo Unit.', 'Costo Total', 'Venta Unit.', 'Venta Total'],
                             ...orden.manpowers.map(mp => [
-                                mp.manpower?.name || 'Sin descripción',
+                                // concatena nombre + detalle
+                                `${mp.manpower?.name || 'Sin descripción'}${mp.useDetail ? ' – ' + mp.useDetail : ''}`,
                                 mp.manpower?.type || 'Sin tipo',
-                                (mp.cantidad || 0).toString(),
-                                mp.manpower?.contractor
-                                    ? `${mp.manpower.contractor.firstName || ""} ${mp.manpower.contractor.lastName || ""}`.trim()
-                                    : "Sin contratista",
-                                formatCurrency(mp.manpower?.unitaryCost),
+                                String(mp.cantidad || 0),
+                                // muestra contractor si viene
+                                mp.contractor
+                                    ? `${mp.contractor.firstName || ''} ${mp.contractor.lastName || ''}`.trim()
+                                    : 'Sin contratista',
+                                formatCurrency(mp.unitaryCost),       // raíz
                                 formatCurrency(mp.costoTotal),
                                 formatCurrency(mp.ventaUnitaria),
-                                formatCurrency(mp.ventaTotal)
+                                formatCurrency(mp.ventaTotal),
                             ])
                         ]
                     }
                 },
                 "\n"
             ] : []),
+
+            // COTIZACIÓN
             ...(isValidArray(orden.pricings) ? [
                 { text: "INFORMACIÓN DE COTIZACIÓN", style: "section" },
                 {
@@ -136,12 +154,15 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                         `Número de Cotización: ${orden.pricings[0].pricingNumber || 'Sin número'}`,
                         `Fecha de Cotización: ${formatDateOnly(orden.pricings[0].pricingDate)}`,
                         `Cotizado por: ${orden.pricings[0].pricedBy
-                            ? `${orden.pricings[0].pricedBy.firstName || ''} ${orden.pricings[0].pricedBy.lastName || ''}`.trim()
-                            : 'Sin especificar'}`
+                            ? `${orden.pricings[0].pricedBy.firstName} ${orden.pricings[0].pricedBy.lastName}`
+                            : 'Sin especificar'
+                        }`
                     ]
                 },
                 "\n"
             ] : []),
+
+            // FACTURACIÓN
             ...(isValidArray(orden.billings) ? [
                 { text: "INFORMACIÓN DE FACTURACIÓN", style: "section" },
                 {
@@ -149,14 +170,16 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                         `Número de Factura: ${orden.billings[0].billingNumber || 'Sin número'}`,
                         `Fecha de Facturación: ${formatDateOnly(orden.billings[0].billingDate)}`,
                         `Facturado por: ${orden.billings[0].billedBy
-                            ? `${orden.billings[0].billedBy.firstName || ''} ${orden.billings[0].billedBy.lastName || ''}`.trim()
-                            : 'Sin especificar'}`,
+                            ? `${orden.billings[0].billedBy.firstName} ${orden.billings[0].billedBy.lastName}`
+                            : 'Sin especificar'
+                        }`,
                         `Número de Acta: ${orden.billings[0].actNumber || 'Sin número de acta'}`
                     ]
                 },
                 "\n"
             ] : []),
-            
+
+            // RESUMEN FINANCIERO
             ...(orden.total ? [
                 { text: "RESUMEN FINANCIERO", style: "section" },
                 {

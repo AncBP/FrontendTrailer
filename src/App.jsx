@@ -15,6 +15,7 @@ import Conductores from "./Page/Conductores/Index.jsx";
 import ManoDeObra from "./Page/ManoDeObra/Index.jsx";
 import Contactos from "./Page/Contactos/Index.jsx";
 import Vehiculos from "./Page/Vehiculo/index.jsx";
+import Insumos from "./Page/Insumos/Index.jsx";
 
 function App() {
 
@@ -33,7 +34,7 @@ function App() {
     clientes: ["Administrador", "Coordinador de Operaciones"],
     conductores: ["Administrador", "Coordinador de Operaciones"],
     vehiculos: ["Administrador", "Coordinador de Operaciones"],
-    manoDeObra: ["Administrador", "Coordinador de Operaciones","Contratista", "Mecánico", "Colaborador"],
+    manoDeObra: ["Administrador", "Coordinador de Operaciones"],
     contactos: ["Administrador", 'Coordinador de Operaciones'],
     ordenes: [
       "Administrador", "Contratista", "Mecánico", "Colaborador", "Usuario", "Coordinador de Operaciones", "Cliente Externo", "Almacenista", "Auxiliar Administrativo"
@@ -42,7 +43,8 @@ function App() {
       "Administrador", "Contratista", "Mecánico", "Colaborador","Coordinador de Operaciones", "Cliente Externo", "Almacenista", "Auxiliar Administrativo"
     ],
     repuestos: ["Administrador", "Almacenista", "Auxiliar Administrativo", "Coordinador de Operaciones"],
-    proveedores: ["Administrador", "Coordinador de Operaciones"]
+    proveedores: ["Administrador", "Coordinador de Operaciones"],
+    insumos: ["Administrador", "Coordinador de Operaciones"]
   };
 
   const canRoute = (section) =>
@@ -165,6 +167,14 @@ function App() {
             element={
               canRoute("repuestos")
                 ? <Repuestos />
+                : <Navigate to="/dashboard" replace />
+            }
+          />
+          <Route
+            path="insumos"
+            element={
+              canRoute("insumos")
+                ? <Insumos />
                 : <Navigate to="/dashboard" replace />
             }
           />

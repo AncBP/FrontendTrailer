@@ -3,6 +3,8 @@ import axios from 'axios';
 import { FaChevronUp, FaChevronDown, FaTimes } from 'react-icons/fa';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { Listbox } from '@headlessui/react'
+import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/24/solid'
 
 
 const NuevaOrdenTrabajo = ({ user }) => {
@@ -20,10 +22,10 @@ const NuevaOrdenTrabajo = ({ user }) => {
             return {
                 infoOrden: false,
                 infoCliente: false,
-                infoCotizacion: false,
                 infoVehiculo: false,
                 repuestosMateriales: true,
-                manoObra: false
+                manoObra: true,
+                infoCotizacion: false,
             };
         } else if (soloPuedeEditarManoObra) {
             return {
@@ -31,24 +33,24 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 infoCliente: false,
                 infoCotizacion: false,
                 infoVehiculo: false,
-                repuestosMateriales: false,
+                repuestosMateriales: true,
                 manoObra: true
             };
         } else {
             return {
                 infoOrden: true,
                 infoCliente: false,
-                infoCotizacion: false,
                 infoVehiculo: false,
                 repuestosMateriales: false,
-                manoObra: false
+                manoObra: false,
+                infoCotizacion: false,
             };
         }
     });
 
     const [formulario, setFormulario] = useState({
         numeroOrden: '',
-        Asignado: '',
+        Asignado: [],
         fechaSalida: '',
         horaSalida: '',
         fechaCreacion: '',
@@ -85,6 +87,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
     });
 
     const [statusOptions, setStatusOptions] = useState([]);
+    const idTrabajoRealizado = statusOptions.find(s => s.name === 'Trabajo Realizado')?.idOrderStatus;
     const [opcRepuestos, setOpcRepuestos] = useState([]);
     const [serviceTypeOptions, setServiceTypeOptions] = useState([]);
     const [vehicleTypeOptions, setVehicleTypeOptions] = useState([]);
@@ -94,12 +97,15 @@ const NuevaOrdenTrabajo = ({ user }) => {
     const [opcionesCargadas, setOpcionesCargadas] = useState(false);
     const [manpowers, setManpowers] = useState([]);
     const [vehiculeOptions, setVehiculeOptions] = useState([]);
-
+    const [driversByVehicle, setDriversByVehicle] = useState([]);
+    const canEditFactor = user && ['Coordinador de Operaciones', 'Administrador'].includes(user.role.name);
     const [repuestos, setRepuestos] = useState([]);
     const [manoDeObra, setManoDeObra] = useState([]);
     const [contactos, setContactos] = useState([]);
     const [contactosData, setContactosData] = useState([]);
+    const [proveedores, setProveedores] = useState([]);
     const [contactosDisponibles, setContactosDisponibles] = useState([]);
+    const [supplyOptions, setSupplyOptions] = useState([])
     const [contactosSeleccionados, setContactosSeleccionados] = useState([]);
 
 
@@ -180,36 +186,51 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     axios.get(`${API_URL}/vehicule-type`).catch(() => ({ data: [] })),
                     axios.get(`${API_URL}/user`).catch(() => ({ data: { data: [] } })),
                     axios.get(`${API_URL}/driver`).catch(() => ({ data: [] })),
+                    axios.get(`${API_URL}/provider`).catch(() => ({ data: [] })),
                     axios.get(`${API_URL}/client`).catch(() => ({ data: { data: [] } })),
                     axios.get(`${API_URL}/manpower`, { params: { filter: 'Activo' } }).catch(() => ({ data: [] })),
                     axios.get(`${API_URL}/vehicule`).catch(() => ({ data: { data: [] } })),
-                    axios.get(`${API_URL}/contacts`).catch(() => ({ data: [] }))
+                    axios.get(`${API_URL}/contacts`).catch(() => ({ data: [] })),
+                    axios.get(`${API_URL}/supply`, { params: { filter: 'Activo' } })
                 ];
 
                 const [
-                    statusResp,
-                    repuestosResp,
-                    serviceResp,
-                    vehicleTypeResp,
-                    userResp,
-                    driverResp,
-                    clientResp,
-                    manpowerResp,
-                    vehiculeResp,
-                    contactsResp
+                    statusResp,         // order-status
+                    repuestosResp,      // spare-part-material
+                    serviceResp,        // service-type
+                    vehicleTypeResp,    // vehicule-type
+                    userResp,           // user
+                    driverResp,         // driver
+                    proveedoresResp,    // provider
+                    clientResp,         // client
+                    manpowerResp,       // manpower
+                    vehiculeResp,       // vehicule
+                    contactsResp,      // contacts
+                    supplyResp         // supply
+
                 ] = await Promise.all(requests);
 
+                const rawProv = proveedoresResp.data;
+                const listaProveedores = Array.isArray(rawProv)
+                    ? rawProv
+                    : Array.isArray(rawProv.data)
+                        ? rawProv.data
+                        : [];
+
+                setProveedores(listaProveedores);
 
                 setStatusOptions(statusResp.data || []);
                 setOpcRepuestos(Array.isArray(repuestosResp.data) ? repuestosResp.data : (repuestosResp.data?.data || []));
                 setServiceTypeOptions(serviceResp.data || []);
                 setVehicleTypeOptions(vehicleTypeResp.data || []);
+
                 setUserOptions(userResp.data?.data || userResp.data || []);
                 setDriverOptions(driverResp.data || []);
                 setClientOptions(clientResp.data?.data || clientResp.data || []);
                 setManpowers(Array.isArray(manpowerResp.data) ? manpowerResp.data : (manpowerResp.data?.data || []));
                 setVehiculeOptions(vehiculeResp.data?.data || vehiculeResp.data || []);
                 setContactosData(contactsResp.data || []);
+                setSupplyOptions(supplyResp.data || []);
 
                 setOpcionesCargadas(true);
 
@@ -225,88 +246,74 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
 
     useEffect(() => {
-        if (!isEdit || !id || !opcionesCargadas) {
-            return;
-        }
+        if (!isEdit || !id || !opcionesCargadas) return;
 
         const cargarDatosOrden = async () => {
             try {
-                const { data } = await axios.get(`${API_URL}/order/${id}`);
+                const resp = await axios.get(`${API_URL}/order/${id}`);
+                console.log('GET /order resp:', resp.data);
 
-                if (!data) {
-                    throw new Error('No se recibieron datos de la orden');
+                // Extrae la orden ya sea de resp.data.data[0], resp.data.data o resp.data
+                let orden;
+                if (resp.data.data !== undefined) {
+                    orden = Array.isArray(resp.data.data)
+                        ? resp.data.data[0]
+                        : resp.data.data;
+                } else {
+                    orden = resp.data;
                 }
 
-                const isTrabajoRealizado = data.orderStatus?.idOrderStatus === 'c8cc358e-3a33-408c-bb35-41aaf0ed2853';
+                if (!orden) {
+                    throw new Error('No se recibió la orden a editar');
+                }
+
+                const isTrabajoRealizado = orden.orderStatus?.idOrderStatus === idTrabajoRealizado;
+
+                const asignadosBackend = Array.isArray(orden.assignTo)
+                    ? orden.assignTo.map(u => u.idUser)
+                    : orden.assignTo
+                        ? [orden.assignTo.idUser]
+                        : [];
 
                 setFormulario(prev => ({
                     ...prev,
-                    numeroOrden: data.orderNumber || '',
-                    fechaCreacion: data.createdAt,
-                    horaCreacion: formatearHoraLocal(data.createdAt),
-                    Asignado: data.assignTo?.idUser || null,
-
-
-                    fechaSalida: isTrabajoRealizado ? toInputDate(data.outDate) : '',
-                    horaSalida: isTrabajoRealizado ? formatearHoraLocal(data.outDate) : '',
-
-
-                    tipoServicio: data.serviceTypes?.map(st => st.idServiceType.toString()) || [],
-                    orderStatusId: data.orderStatus?.idOrderStatus?.toString() || '',
-
-
-                    cliente: data.client?.idClient || '',
-                    vehicule: data.vehicule?.idVehicule || '',
-
-
-                    nombreCliente: data.client?.name || '',
-                    tipoDocCliente: data.client?.document?.documentType?.idDocumentType || '',
-                    numeroIdCliente: data.client?.document?.documentNumber || '',
-                    placaCabezote: data.vehicule?.placaCabezote || '',
-                    placaTrailer: data.vehicule?.placaTrailer || '',
-                    tipoVehiculo: data.vehicule?.vehiculeType?.idVehiculeType || '',
-                    kmSalida: data.vehicule?.kmsSalida?.toString() || '',
-                    conductor: data.vehicule?.driver?.idDriver || '',
-                    nombreConductor: data.vehicule?.driver?.firstName || '',
-                    apellidoConductor: data.vehicule?.driver?.lastName || '',
-                    telefonoConductor: data.vehicule?.driver?.phoneNumber || '',
-
-
-                    numeroCotizacion: data.pricings?.[0]?.pricingNumber || '',
-                    fechaCotizacion: toInputDate(data.pricings?.[0]?.pricingDate),
-                    cotizadoPor: data.pricings?.[0]?.pricedBy?.idUser || '',
-
-                    numeroFacturacion: data.billings?.[0]?.billingNumber || '',
-                    fechaFacturacion: toInputDate(data.billings?.[0]?.billingDate),
-                    facturadoPor: data.billings?.[0]?.billedBy?.idUser || '',
-                    numeroActaEntrega: data.billings?.[0]?.actNumber || '',
-
-                    // Contacto principal
-                    nombreSolicitud: data.contacts?.find(c => c.isPrincipalContact)?.name || '',
-
-                    // Totales
+                    numeroOrden: orden.orderNumber || '',
+                    fechaCreacion: orden.createdAt,
+                    horaCreacion: formatearHoraLocal(orden.createdAt),
+                    Asignado: asignadosBackend,
+                    fechaSalida: isTrabajoRealizado ? toInputDate(orden.outDate) : '',
+                    horaSalida: isTrabajoRealizado ? formatearHoraLocal(orden.outDate) : '',
+                    tipoServicio: orden.serviceTypes?.map(st => st.idServiceType.toString()) || [],
+                    orderStatusId: orden.orderStatus?.idOrderStatus?.toString() || '',
+                    cliente: orden.client?.idClient || '',
+                    vehicule: orden.vehicule?.idVehicule || '',
+                    placaCabezote: orden.vehicule?.placaCabezote || '',
+                    placaTrailer: orden.vehicule?.placaTrailer || '',
+                    tipoVehiculo: orden.vehicule?.vehiculeType?.idVehiculeType || '',
+                    kmSalida: orden.kilometers != null ? orden.kilometers.toString() : '',
+                    conductor: orden.assignedDriver?.idDriver || '',
+                    nombreSolicitud: orden.contacts?.find(c => c.isPrincipalContact)?.name || '',
                     totals: {
-                        subtotalCostosRepuestos: data.total?.subtotalCostosRepuestos || 0,
-                        subtotalVentasRepuestos: data.total?.subtotalVentasRepuestos || 0,
-                        subtotalCostosManoObra: data.total?.subtotalCostosManoObra || 0,
-                        subtotalVentasManoObra: data.total?.subtotalVentasManoObra || 0,
-                        subtotalCostos: data.total?.subtotalCostos || 0,
-                        subtotalVentas: data.total?.subtotalVentas || 0,
-                        iva: data.total?.iva || 0,
-                        totalVenta: data.total?.totalVenta || 0,
+                        subtotalCostosRepuestos: orden.total?.subtotalCostosRepuestos || 0,
+                        subtotalVentasRepuestos: orden.total?.subtotalVentasRepuestos || 0,
+                        subtotalCostosManoObra: orden.total?.subtotalCostosManoObra || 0,
+                        subtotalVentasManoObra: orden.total?.subtotalVentasManoObra || 0,
+                        subtotalCostos: orden.total?.subtotalCostos || 0,
+                        subtotalVentas: orden.total?.subtotalVentas || 0,
+                        iva: orden.total?.iva || 0,
+                        totalVenta: orden.total?.totalVenta || 0,
                     }
                 }));
 
-
                 // Cargar repuestos
-                if (data.sparePartMaterials && Array.isArray(data.sparePartMaterials)) {
-                    const repuestosData = data.sparePartMaterials.map((spm, idx) => ({
+                if (Array.isArray(orden.sparePartMaterials)) {
+                    const repuestosData = orden.sparePartMaterials.map((spm, idx) => ({
                         id: idx + 1,
                         idSparePartMaterial: spm.sparePartMaterial?.idSparePartMaterial || '',
                         tipo: spm.sparePartMaterial?.type || '',
                         cantidad: spm.cantidad || 0,
-                        proveedor: spm.sparePartMaterial?.provider?.name || 'Sin proveedor',
-                        costoUnitario: spm.sparePartMaterial?.unitaryCost || 0,
+                        proveedor: spm.selectedProvider?.idProvider || '',
+                        costoUnitario: spm.unitaryCost || 0,
                         costoTotal: spm.costoTotal || 0,
                         factorVenta: spm.factorVenta || 0,
                         ventaUnitaria: spm.ventaUnitaria || 0,
@@ -317,36 +324,54 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 }
 
                 // Cargar mano de obra
-                if (data.manpowers && Array.isArray(data.manpowers)) {
-                    const manoObraData = data.manpowers.map((mp, idx) => ({
+                if (Array.isArray(orden.manpowers)) {
+                    const manoObraData = orden.manpowers.map((mp, idx) => ({
                         id: idx + 1,
                         idManpower: mp.manpower?.idManpower || '',
                         descripcion: mp.manpower?.name || '',
                         tipo: mp.manpower?.type || '',
+                        useDetail: mp.useDetail || '',
                         cantidad: mp.cantidad || 0,
+                        unitaryCost: mp.unitaryCost ?? 0,
                         contratista: mp.manpower?.contractor?.idUser || '',
-                        unitaryCost: mp.manpower?.unitaryCost || 0,
                         totalCost: mp.costoTotal || 0,
                         sellFactor: mp.factorVenta || 0,
                         unitSell: mp.ventaUnitaria || 0,
                         totalSell: mp.ventaTotal || 0,
+
+
+                        insumos: Array.isArray(mp.supplies)
+                            ? mp.supplies.map(sup => ({
+
+                                supply: sup.supply?.idSupply || '',
+
+                                selectedProvider: sup.selectedProvider?.idProvider || '',
+                                cantidad: sup.cantidad || '',
+                                unitaryCost: sup.unitaryCost || '',
+                                factorInsumo: sup.factorVenta || '',
+                                // Recalcular o tomar directo:
+                                costoTotal: sup.costoTotal || (sup.cantidad * sup.unitaryCost),
+                                ventaUnitaria: sup.ventaUnitaria || Math.round(sup.unitaryCost * (sup.factorVenta || 1)),
+                                ventaTotal: sup.ventaTotal || Math.round(sup.cantidad * Math.round(sup.unitaryCost * (sup.factorVenta || 1)))
+                            }))
+                            : []
                     }));
                     setManoDeObra(manoObraData);
                 }
-
-                // Procesar contactos del cliente
-                if (data.client?.idClient) {
-                    procesarContactosCliente(data.client.idClient);
+                // Contactos adicionales
+                if (orden.client?.idClient) {
+                    procesarContactosCliente(orden.client.idClient);
                 }
 
             } catch (error) {
                 console.error("Error al cargar datos de orden:", error);
-                toast.error(`Error al cargar los datos para editar: ${error.response?.data?.message || error.message}`);
+                toast.error(`Error al cargar los datos para editar: ${error.message}`);
             }
         };
 
         cargarDatosOrden();
-    }, [isEdit, id, opcionesCargadas]); // Dependencias correctas
+    }, [isEdit, id, opcionesCargadas]);
+
 
     const toggleSeccion = (seccion) => {
         setSecciones({
@@ -358,67 +383,27 @@ const NuevaOrdenTrabajo = ({ user }) => {
         });
     };
 
-    /*const validarFormularioCompleto = () => {
-        const errores = [];
 
-        if (!formulario.numeroOrden) errores.push('Número de orden es requerido');
-        if (!formulario.orderStatusId) errores.push('Estado de la orden es requerido');
-        if (!formulario.tipoVehiculo) errores.push('Tipo de vehículo es requerido');
-        if (!formulario.placaCabezote) errores.push('Placa del cabezote es requerida');
-        if (!formulario.kmSalida) errores.push('Kilometraje de salida es requerido');
-
-        if (formulario.fechaSalida && formulario.horaSalida) {
-            const fechaSalida = new Date(`${formulario.fechaSalida}T${formulario.horaSalida}:00`);
-            if (isNaN(fechaSalida.getTime())) {
-                errores.push('Fecha y hora de salida no son válidas');
-            }
-        }
-
-        // Validar fechas opcionales si se proporcionan
-        if (formulario.fechaCotizacion) {
-            const fechaCot = new Date(`${formulario.fechaCotizacion}T00:00:00`);
-            if (isNaN(fechaCot.getTime())) {
-                errores.push('Fecha de cotización no es válida');
-            }
-        }
-
-        if (formulario.fechaFacturacion) {
-            const fechaFact = new Date(`${formulario.fechaFacturacion}T00:00:00`);
-            if (isNaN(fechaFact.getTime())) {
-                errores.push('Fecha de facturación no es válida');
-            }
-        }
-        repuestos.forEach((r, i) => {
-            if (!r.idSparePartMaterial) errores.push(`Repuesto ${i + 1}: selecciona un material`);
-            if (!r.cantidad || r.cantidad <= 0) errores.push(`Repuesto ${i + 1}: cantidad inválida`);
-        });
-
-        manoDeObra.forEach((m, i) => {
-            if (!m.cantidad || m.cantidad <= 0) errores.push(`Mano de obra ${i + 1}: cantidad inválida`);
-            if (!m.contratista) errores.push(`Mano de obra ${i + 1}: contratista es requerido`);
-        });
-
-        return errores;
-    };*/
 
     const calcularTotales = () => {
-        const subtotalCostosRepuestos = repuestos.reduce(
-            (acc, r) => acc + (r.costoTotal || 0),
-            0
-        );
-        const subtotalVentasRepuestos = repuestos.reduce(
-            (acc, r) => acc + (r.ventaTotal || 0),
-            0
-        );
-        const subtotalCostosManoObra = manoDeObra.reduce(
-            (sum, m) => sum + (m.totalCost || 0),
-            0
-        );
-        const subtotalVentasManoObra = manoDeObra.reduce(
-            (sum, m) => sum + (m.totalSell || 0),
-            0
-        );
+        // Repuestos (sin cambiar)
+        const subtotalCostosRepuestos = repuestos.reduce((sum, r) => sum + (r.costoTotal || 0), 0);
+        const subtotalVentasRepuestos = repuestos.reduce((sum, r) => sum + (r.ventaTotal || 0), 0);
 
+        // Mano de obra + sus insumos
+        const subtotalCostosManoObra = manoDeObra.reduce((sum, m) => {
+            const costoMano = m.totalCost || 0;
+            const costoInsumos = (m.insumos || []).reduce((s, i) => s + (i.costoTotal || 0), 0);
+            return sum + costoMano + costoInsumos;
+        }, 0);
+
+        const subtotalVentasManoObra = manoDeObra.reduce((sum, m) => {
+            const ventaMano = m.totalSell || 0;
+            const ventaInsumos = (m.insumos || []).reduce((s, i) => s + (i.ventaTotal || 0), 0);
+            return sum + ventaMano + ventaInsumos;
+        }, 0);
+
+        // Totales generales
         const subtotalCostos = subtotalCostosRepuestos + subtotalCostosManoObra;
         const subtotalVentas = subtotalVentasRepuestos + subtotalVentasManoObra;
         const iva = Math.round(subtotalVentas * 0.19 * 100) / 100;
@@ -492,11 +477,6 @@ const NuevaOrdenTrabajo = ({ user }) => {
     };
 
     const handleGuardar = async () => {
-        /*const errores = validarFormularioCompleto();
-        if (errores.length) {
-            errores.forEach((e) => toast.error(e));
-            return;
-        }*/
 
         const crearFechaValida = (fecha, hora = '00:00:00') => {
             if (!fecha) return null;
@@ -527,49 +507,72 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
         // --- NUEVO PAYLOAD ---
         const payloadOrder = {
-            orderNumber: formulario.numeroOrden ?? null,
-            assignTo: formulario.Asignado ?? null,
+            // orderNumber si lo necesitas...
+            assignTo: formulario.Asignado,             // string[]
             outDate: isTrabajoRealizado
                 ? crearFechaValida(formulario.fechaSalida, formulario.horaSalida)
                 : null,
-            orderStatus: orderStatusValido ?? null,
-            serviceTypes: serviceTypesValidos ?? null,
-            client: formulario.cliente && formulario.cliente !== '' ? formulario.cliente : null,
-            vehicule: formulario.vehicule && formulario.vehicule !== '' ? formulario.vehicule : null,
+            orderStatus: orderStatusValido,            // string
+            serviceTypes: serviceTypesValidos,         // string[]
+            client: formulario.cliente || null,        // string
+            vehicule: formulario.vehicule || null,     // string
+            assignedDriver: formulario.conductor || null, // string
+
+
+            kilometers: formulario.kmSalida ? parseInt(formulario.kmSalida) : null,
+
+            pricings: formulario.numeroCotizacion
+                ? [{
+                    pricingNumber: formulario.numeroCotizacion,
+                    pricingDate: crearFechaValida(formulario.fechaCotizacion),
+                    pricedBy: formulario.cotizadoPor,
+                }]
+                : [],
 
             billings: formulario.numeroFacturacion
                 ? [{
-                    billingNumber: formulario.numeroFacturacion ?? null,
-                    billingDate: crearFechaValida(formulario.fechaFacturacion) ?? null,
-                    actNumber: formulario.numeroActaEntrega ?? null,
-                    billedBy: formulario.facturadoPor ?? null,
+                    billingNumber: formulario.numeroFacturacion,
+                    billingDate: crearFechaValida(formulario.fechaFacturacion),
+                    actNumber: formulario.numeroActaEntrega,
+                    billedBy: formulario.facturadoPor,
                 }]
-                : null,
-            pricings: formulario.numeroCotizacion
-                ? [{
-                    pricingNumber: formulario.numeroCotizacion ?? null,
-                    pricingDate: crearFechaValida(formulario.fechaCotizacion) ?? null,
-                    pricedBy: formulario.cotizadoPor ?? null,
-                }]
-                : null,
-            sparePartMaterials: repuestos.length > 0 ? repuestos.map(r => ({
-                sparePartMaterial: r.idSparePartMaterial ?? null,
-                costoTotal: r.costoTotal != null ? Number(r.costoTotal) : null,
-                factorVenta: r.factorVenta != null ? Number(r.factorVenta) : null,
-                cantidad: r.cantidad != null ? Number(r.cantidad) : null,
-                ventaUnitaria: r.ventaUnitaria != null ? Number(r.ventaUnitaria) : null,
-                ventaTotal: r.ventaTotal != null ? Number(r.ventaTotal) : null,
-            })) : null,
-            manpowers: manoDeObra.length > 0 ? manoDeObra.map(m => ({
-                manpower: m.idManpower ?? null,
-                cantidad: m.cantidad != null ? Number(m.cantidad) : null,
-                costoTotal: m.totalCost != null ? Number(m.totalCost) : null,
-                factorVenta: m.sellFactor != null ? Number(m.sellFactor) : null,
-                ventaUnitaria: m.unitSell != null ? Number(m.unitSell) : null,
-                ventaTotal: m.totalSell != null ? Number(m.totalSell) : null,
-            })) : null,
-            totals: totalesCalculados ?? null
+                : [],
+
+            sparePartMaterials: repuestos.map(r => ({
+                sparePartMaterial: r.idSparePartMaterial,
+                selectedProvider: r.proveedor,
+                unitaryCost: Number(r.costoUnitario),
+                cantidad: Number(r.cantidad),
+                costoTotal: Number(r.costoTotal),
+                factorVenta: Number(r.factorVenta),
+                ventaUnitaria: Number(r.ventaUnitaria),
+                ventaTotal: Number(r.ventaTotal),
+            })),
+            manpowers: manoDeObra.map(m => ({
+                manpower: m.idManpower,
+                unitaryCost: Number(m.unitaryCost),
+                useDetail: m.detalles || '',
+                cantidad: Number(m.cantidad),
+                costoTotal: Number(m.totalCost),
+                factorVenta: Number(m.sellFactor),
+                ventaUnitaria: Number(m.unitSell),
+                ventaTotal: Number(m.totalSell),
+                contractor: m.contratista || null,
+                supplies: (m.insumos || []).map(s => ({
+                    supply: s.supply,
+                    selectedProvider: s.selectedProvider,
+                    unitaryCost: Number(s.unitaryCost),
+                    cantidad: Number(s.cantidad),
+                    costoTotal: Number(s.costoTotal),
+                    factorVenta: Number(s.factorInsumo),
+                    ventaUnitaria: Number(s.ventaUnitaria),
+                    ventaTotal: Number(s.ventaTotal),
+                }))
+            })),
+
+            totals: totalesCalculados,
         };
+
 
         try {
             if (isEdit) {
@@ -585,6 +588,72 @@ const NuevaOrdenTrabajo = ({ user }) => {
             toast.error(err.response?.data?.message || err.message || "Error guardando la orden");
         }
     };
+
+    // Añade estos helpers en tu componente (antes del return)
+
+    const agregarInsumo = (manoId) => {
+        setManoDeObra(prev =>
+            prev.map(m =>
+                m.id === manoId
+                    ? {
+                        ...m,
+                        insumos: [
+                            ...(m.insumos || []),
+                            { supply: '', cantidad: '', selectedProvider: '', unitaryCost: '', costoTotal: 0, factorVenta: '', ventaUnitaria: 0, ventaTotal: 0 }
+                        ]
+                    }
+                    : m
+            )
+        );
+    };
+
+    const actualizarInsumo = (manoId, idx, campo, valor) => {
+        setManoDeObra(prev =>
+            prev.map(m => {
+                if (m.id !== manoId) return m;
+                const nuevos = [...(m.insumos || [])];
+                const ins = { ...nuevos[idx] };
+
+                switch (campo) {
+                    case 'supply':
+                        ins.supply = valor;
+
+                        ins.unitaryCost = supplyOptions.find(s => s.idSupply === valor)?.unitaryCost || 0;
+                        break;
+                    case 'selectedProvider':
+                        ins.selectedProvider = valor; // string
+                        break;
+                    case 'cantidad':
+                    case 'unitaryCost':
+                    case 'factorInsumo':
+                        ins[campo] = Number(valor);
+                        break;
+                    default:
+                        ins[campo] = valor;
+                }
+
+                // Recalcular totales de insumo:
+                ins.costoTotal = ins.cantidad * ins.unitaryCost;
+                // Venta unitaria = unitaryCost × factorInsumo
+                ins.ventaUnitaria = Math.round(ins.unitaryCost * ins.factorInsumo);
+                ins.ventaTotal = ins.ventaUnitaria * ins.cantidad;
+
+                nuevos[idx] = ins;
+                return { ...m, insumos: nuevos };
+            })
+        );
+    };
+
+    const eliminarInsumo = (manoId, idx) => {
+        setManoDeObra(prev =>
+            prev.map(m =>
+                m.id === manoId
+                    ? { ...m, insumos: (m.insumos || []).filter((_, i) => i !== idx) }
+                    : m
+            )
+        );
+    };
+
 
 
     // Resto del código (funciones de repuestos, mano de obra, etc.)
@@ -705,9 +774,8 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 id: nuevoId,
                 descripcion: '',
                 tipo: '',
+                detalles: '',
                 cantidad: '',
-                contratista: '',
-                unitaryCost: '',
                 totalCost: 0,
                 sellFactor: 0,
                 unitSell: 0,
@@ -735,8 +803,6 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                 idManpower: manpowerInfo.idManpower,
                                 descripcion: manpowerInfo.name,
                                 tipo: manpowerInfo.type,
-                                unitaryCost: manpowerInfo.unitaryCost,
-                                contratista: manpowerInfo.contractor?.idUser || "",
                             };
                         }
                     }
@@ -757,6 +823,24 @@ const NuevaOrdenTrabajo = ({ user }) => {
     };
 
 
+    const handleVehiculeSelect = e => {
+        const vehId = e.target.value;
+
+        const veh = vehiculeOptions.find(v => v.idVehicule === vehId) || {};
+
+
+
+        setFormulario(prev => ({
+            ...prev,
+            vehicule: vehId,
+            placaCabezote: veh.placaCabezote || '',
+            placaTrailer: veh.placaTrailer || '',
+            tipoVehiculo: veh.vehiculeType?.idVehiculeType || ''
+
+        }));
+    };
+
+
 
     const handleCambioFormulario = (e) => {
         const { name, value, type, checked } = e.target;
@@ -764,25 +848,26 @@ const NuevaOrdenTrabajo = ({ user }) => {
         if (name === "tipoServicio" && type === "checkbox") {
             setFormulario(prev => {
                 let actual = prev.tipoServicio || [];
-                // Convertir value a string para comparación consistente
+
                 const valor = value.toString();
 
                 if (checked) {
-                    // Si no está, agregar
+
                     if (!actual.includes(valor)) {
                         return { ...prev, tipoServicio: [...actual, valor] };
                     }
                 } else {
-                    // Remover si está
+
                     return { ...prev, tipoServicio: actual.filter(v => v !== valor) };
                 }
                 return prev;
             });
         } else {
-            // Para otros campos, incluyendo orderStatusId
+
             setFormulario(prev => ({ ...prev, [name]: value }));
         }
     };
+
 
 
 
@@ -797,21 +882,33 @@ const NuevaOrdenTrabajo = ({ user }) => {
         (acc, r) => acc + (r.ventaTotal || 0),
         0
     );
-    const subtotalCostosManoObra = manoDeObra.reduce(
-        (sum, m) => sum + (m.totalCost || 0),
-        0
-    );
-    const subtotalVentasManoObra = manoDeObra.reduce(
-        (sum, m) => sum + (m.totalSell || 0),
-        0
-    );
+    const subtotalCostosManoObra = manoDeObra.reduce((sum, m) => {
+        const costoMano = m.totalCost || 0;
+        const costoInsumos = (m.insumos || []).reduce((s, i) => s + (i.costoTotal || 0), 0);
+        return sum + costoMano + costoInsumos;
+    }, 0);
+
+    const subtotalVentasManoObra = manoDeObra.reduce((sum, m) => {
+        const ventaMano = m.totalSell || 0;
+        const ventaInsumos = (m.insumos || []).reduce((s, i) => s + (i.ventaTotal || 0), 0);
+        return sum + ventaMano + ventaInsumos;
+    }, 0);
 
     const subtotalCostos = subtotalCostosRepuestos + subtotalCostosManoObra;
     const subtotalVentas = subtotalVentasRepuestos + subtotalVentasManoObra;
     const iva = Math.round(subtotalVentas * 0.19 * 100) / 100;
     const totalVenta = Math.round((subtotalVentas + iva) * 100) / 100;
+
+
+    const roleOptions = userOptions
+        .filter(u => ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name))
+        .map(u => ({
+            value: u.idUser,
+            label: `${u.firstName} ${u.lastName}`
+        }))
+
     return (
-        <div className="max-w-6xl mx-auto bg-gray-50 p-6">
+        <div className="max-w-7xl w-full mx-auto bg-gray-50 p-6">
             <h1 className="text-2xl font-bold mb-6">{isEdit ? 'Editar Orden de Trabajo' : 'Nueva Orden de Trabajo'}</h1>
 
             {/* Información de la Orden */}
@@ -841,22 +938,55 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Asignado a </label>
-                                <select
-                                    className="w-full p-2 border border-gray-300 rounded text-left "
-                                    value={formulario.Asignado}
-                                    onChange={handleCambioFormulario}
-                                    name='Asignado'
+                                <Listbox
+                                    value={Array.isArray(formulario.Asignado) ? formulario.Asignado : []}
+                                    onChange={vals => setFormulario(prev => ({ ...prev, Asignado: vals }))}
+                                    multiple
                                 >
-                                    <option value="">Selecciona contratista</option>
-                                    {userOptions
-                                        .filter(u => ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name))
-                                        .map(u => (
-                                            <option key={u.idUser} value={u.idUser}>
-                                                {u.firstName + ' ' + u.lastName}
-                                            </option>
-                                        ))}
-                                </select>
+                                    <Listbox.Label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Asignar a *
+                                    </Listbox.Label>
+                                    <div className="relative">
+                                        <Listbox.Button className="w-full border border-gray-300 rounded-md p-2 flex justify-between items-center bg-white">
+                                            <span className="truncate">
+                                                {roleOptions
+                                                    .filter(o => formulario.Asignado.includes(o.value))
+                                                    .map(o => o.label)
+                                                    .join(', ') || 'Selecciona colaboradores'}
+                                            </span>
+                                            <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
+                                        </Listbox.Button>
+
+                                        <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none">
+                                            {roleOptions.map(opt => (
+                                                <Listbox.Option
+                                                    key={opt.value}
+                                                    value={opt.value}
+                                                    className={({ active }) =>
+                                                        `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''
+                                                        }`
+                                                    }
+                                                >
+                                                    {({ selected }) => (
+                                                        <>
+                                                            <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>
+                                                                {opt.label}
+                                                            </span>
+                                                            {selected && (
+                                                                <CheckIcon
+                                                                    className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600"
+                                                                />
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </Listbox.Option>
+                                            ))}
+                                        </Listbox.Options>
+                                    </div>
+                                    <p className="mt-1 text-xs text-gray-500">
+                                        Seleccionados: {formulario.Asignado.length}
+                                    </p>
+                                </Listbox>
                             </div>
                         </div>
 
@@ -897,14 +1027,14 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de salida</label>
                                 <div className="flex">
                                     <input
-                                        value={formulario.fechaSalida}
-                                        onChange={handleCambioFormulario}
                                         name="fechaSalida"
                                         type="date"
-                                        disabled={formulario.orderStatusId !== 'c8cc358e-3a33-408c-bb35-41aaf0ed2853'}
+                                        value={formulario.fechaSalida}
+                                        onChange={handleCambioFormulario}
+                                        disabled={formulario.orderStatusId !== idTrabajoRealizado}
                                         className={`w-full p-2 border rounded 
-                                         ${formulario.orderStatusId === 'c8cc358e-3a33-408c-bb35-41aaf0ed2853'
-                                                ? 'border-gray-300 bg-white'
+                                        ${formulario.orderStatusId === idTrabajoRealizado
+                                                ? 'border-gray-300 bg-white text-gray-900'
                                                 : 'border-gray-300 bg-gray-100 text-gray-400'
                                             }`
                                         }
@@ -914,14 +1044,14 @@ const NuevaOrdenTrabajo = ({ user }) => {
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Hora de Salida</label>
                                 <input
-                                    type="time"
                                     name="horaSalida"
+                                    type="time"
                                     value={formulario.horaSalida}
                                     onChange={handleCambioFormulario}
-                                    disabled={formulario.orderStatusId !== 'c8cc358e-3a33-408c-bb35-41aaf0ed2853'}
+                                    disabled={formulario.orderStatusId !== idTrabajoRealizado}
                                     className={`w-full p-2 border rounded
-                                     ${formulario.orderStatusId === 'c8cc358e-3a33-408c-bb35-41aaf0ed2853'
-                                            ? 'border-gray-300 bg-white'
+                                    ${formulario.orderStatusId === idTrabajoRealizado
+                                            ? 'border-gray-300 bg-white text-gray-900'
                                             : 'border-gray-300 bg-gray-100 text-gray-400'
                                         }`
                                     }
@@ -1076,91 +1206,6 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 )}
             </div>
 
-            {/* informacion de cotizacion de factura */}
-
-            <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
-                <div
-                    className="bg-white p-4 flex justify-between items-center cursor-pointer"
-                    onClick={() => {
-                        if (!soloPuedeEditarRepuestos && !soloPuedeEditarManoObra) toggleSeccion('infoCotizacion')
-                    }}
-                >
-                    <h2 className="text-lg font-semibold text-blue-800">Información de cotizacion de factura</h2>
-                    {secciones.infoCotizacion ? <FaChevronUp /> : <FaChevronDown />}
-                </div>
-
-                {secciones.infoCotizacion && (
-                    <div className="bg-white p-4 border-t border-gray-200">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">No. cotización</label>
-                                <input
-                                    value={formulario.numeroCotizacion}
-                                    name="numeroCotizacion"
-                                    onChange={handleCambioFormulario}
-                                    type="text" className="w-full p-2 border border-gray-300 rounded" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de cotización</label>
-                                <input
-                                    value={formulario.fechaCotizacion}
-                                    name='fechaCotizacion'
-                                    onChange={handleCambioFormulario}
-                                    type="date" className="w-full p-2 border border-gray-300 rounded" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Cotizado por</label>
-
-                                <select
-                                    name="cotizadoPor"
-                                    value={formulario.cotizadoPor}
-                                    onChange={handleCambioFormulario}
-                                    className="w-full p-2 border border-gray-300 rounded"
-                                >
-                                    <option value="">Selecciona usuario</option>
-                                    {userOptions.map(u => (
-                                        <option key={u.idUser} value={u.idUser}>{`${u.firstName} ${u.lastName}`}</option>
-                                    ))}
-                                </select>
-
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">No. facturación</label>
-                                <input
-                                    value={formulario.numeroFacturacion}
-                                    name='numeroFacturacion'
-                                    onChange={handleCambioFormulario}
-                                    type="text" className="w-full p-2 border border-gray-300 rounded" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Facturado por</label>
-                                <select
-                                    name="facturadoPor"
-                                    value={formulario.facturadoPor}
-                                    onChange={handleCambioFormulario}
-                                    className="w-full p-2 border border-gray-300 rounded"
-                                >
-                                    <option value="">Selecciona usuario</option>
-                                    {userOptions.map(u => (
-                                        <option key={u.idUser} value={u.idUser}>
-                                            {`${u.firstName} ${u.lastName}`}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Número de acta de entrega</label>
-                                <input
-                                    value={formulario.numeroActaEntrega}
-                                    name='numeroActaEntrega'
-                                    onChange={handleCambioFormulario}
-                                    type="text" className="w-full p-2 border border-gray-300 rounded" />
-                            </div>
-                        </div>
-                    </div>
-
-                )}
-            </div>
 
             {/* informacion del vehiculo  */}
 
@@ -1183,31 +1228,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                 <select
                                     name="vehicule"
                                     value={formulario.vehicule}
-                                    onChange={e => {
-                                        // Obtén el vehículo seleccionado por ID
-                                        const veh = vehiculeOptions.find(v => v.idVehicule === e.target.value);
-                                        if (veh) {
-                                            setFormulario(prev => ({
-                                                ...prev,
-                                                vehicule: veh.idVehicule,                   // Para el backend
-                                                placaCabezote: veh.placaCabezote || '',
-                                                placaTrailer: veh.placaTrailer || '',
-                                                kmSalida: veh.kmsSalida || '',
-                                                tipoVehiculo: veh.vehiculeType?.idVehiculeType || '',
-                                                conductor: veh.driver?.idDriver || '',
-                                            }));
-                                        } else {
-                                            setFormulario(prev => ({
-                                                ...prev,
-                                                vehicule: '',
-                                                placaCabezote: '',
-                                                placaTrailer: '',
-                                                kmSalida: '',
-                                                tipoVehiculo: '',
-                                                conductor: '',
-                                            }));
-                                        }
-                                    }}
+                                    onChange={handleVehiculeSelect}
                                     className="w-full p-2 border border-gray-300 rounded"
                                 >
                                     <option value="">Selecciona una placa</option>
@@ -1248,30 +1269,30 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Kms de salida</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Kilometros</label>
                                 <input
                                     value={formulario.kmSalida}
                                     name='kmSalida'
-
-                                    type="text" className="w-full p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                    readOnly />
+                                    onChange={handleCambioFormulario}
+                                    type="text" className="w-full p-2 border border-gray-300 rounded text-left "
+                                />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Conductor
-                                </label>
-                                <input
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Conductor</label>
+                                <select
                                     name="conductor"
-                                    value={
-                                        driverOptions.find(dr => dr.idDriver === formulario.conductor)
-                                            ? `${driverOptions.find(dr => dr.idDriver === formulario.conductor).firstName} ${driverOptions.find(dr => dr.idDriver === formulario.conductor).lastName}`
-                                            : ''
-                                    }
-
-                                    className="w-full p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                    readOnly
-                                />
-
+                                    value={formulario.conductor}
+                                    onChange={handleCambioFormulario}
+                                    required
+                                    className="w-full p-2 border border-gray-300 rounded"
+                                >
+                                    <option value="">Selecciona conductor</option>
+                                    {driverOptions.map(d => (
+                                        <option key={d.idDriver} value={d.idDriver}>
+                                            {d.firstName} {d.lastName}
+                                        </option>
+                                    ))}
+                                </select>
 
                             </div>
 
@@ -1362,7 +1383,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
                                             {/* === CANTIDAD === */}
                                             <td className="px-2 py-3">
-                                                {/* w-20 (5rem ≈ 80px) suele ser suficiente para un número */}
+
                                                 <input
                                                     type="number"
                                                     min="1"
@@ -1378,13 +1399,30 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
                                             {/* === Proveedor === */}
                                             <td className="px-2 py-3">
-                                                <input
-                                                    type="text"
-
-                                                    className="w-30 p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                                    value={repuesto.proveedor}
-                                                    readOnly
-                                                />
+                                                {(() => {
+                                                    const mat = opcRepuestos.find(m => m.idSparePartMaterial === repuesto.idSparePartMaterial);
+                                                    const providersForMat = mat?.providers || [];
+                                                    return (
+                                                        <select
+                                                            className="w-30 p-2 border border-gray-300 rounded bg-white"
+                                                            value={repuesto.proveedor}
+                                                            onChange={e =>
+                                                                actualizarRepuesto(
+                                                                    repuesto.id,
+                                                                    "proveedor",
+                                                                    e.target.value
+                                                                )
+                                                            }
+                                                        >
+                                                            <option value="">Selecciona proveedor</option>
+                                                            {providersForMat.map(p => (
+                                                                <option key={p.idProvider} value={p.idProvider}>
+                                                                    {p.name}
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    );
+                                                })()}
                                             </td>
 
                                             {/* === Costo Unitario === */}
@@ -1394,7 +1432,14 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
                                                     className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
                                                     value={repuesto.costoUnitario}
-                                                    readOnly
+                                                    onChange={(e) =>
+                                                        actualizarRepuesto(
+                                                            repuesto.id,
+                                                            "costoUnitario",
+                                                            parseFloat(e.target.value) || 0
+                                                        )
+                                                    }
+
                                                 />
                                             </td>
 
@@ -1414,8 +1459,14 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                 <input
                                                     type="number"
                                                     step="0.01"
-                                                    className="w-20 p-2 border border-gray-300 rounded text-center"
+                                                    className={`
+                                                     w-24 p-2 border border-gray-300 rounded text-left
+                                                    ${canEditFactor
+                                                            ? 'bg-white text-gray-900 border-gray-300'
+                                                            : 'bg-gray-100'}
+    `}
                                                     value={repuesto.factorVenta}
+                                                    readOnly={!canEditFactor}
                                                     onChange={(e) =>
                                                         actualizarRepuesto(
                                                             repuesto.id,
@@ -1502,7 +1553,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                         <div className="flex justify-between mb-4">
                             <h3 className="text-md font-medium">Lista de operaciones</h3>
                             <button
-                                className="bg-black text-white px-4 py-1 rounded"
+                                className="bg-black text-white px-4 py-1 rounded hover:bg-gray-800"
                                 onClick={agregarManoDeObra}
                             >
                                 Agregar
@@ -1510,200 +1561,396 @@ const NuevaOrdenTrabajo = ({ user }) => {
                         </div>
 
                         <div className="overflow-x-auto">
-                            <table className="min-w-full divide-y divide-gray-200">
+                            <table className="min-w-full divide-y divide-gray-200 table-fixed">
                                 <thead>
                                     <tr className="bg-gray-50">
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                            Descripción
-                                        </th>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                            Tipo
-                                        </th>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                            Cantidad
-                                        </th>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                            Contratista
-                                        </th>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                            Costo Unitario
-                                        </th>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                            Costo Total
-                                        </th>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                            Factor de Venta
-                                        </th>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                            Venta Unitaria
-                                        </th>
-                                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">
-                                            Venta Total
-                                        </th>
-                                        <th className="px-4 py-2"></th>
+                                        <th className="w-48 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
+                                        <th className="w-32 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Detalle</th>
+                                        <th className="w-24 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
+                                        <th className="w-24 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cantidad</th>
+                                        <th className="w-36 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Contratista</th>
+                                        <th className="w-28 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Costo Unitario</th>
+                                        <th className="w-28 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Costo Total</th>
+                                        <th className="w-28 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Factor de Venta</th>
+                                        <th className="w-28 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Venta Unitaria</th>
+                                        <th className="w-28 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Venta Total</th>
+                                        <th className="w-24 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Insumos</th>
+                                        <th className="w-16 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody className="bg-white divide-y divide-gray-200">
                                     {manoDeObra.map(item => (
-                                        <tr key={item.id} className="border-b border-gray-100">
-
-                                            <td className="px-2 py-3">
-                                                <select
-                                                    className="w-50 p-2 border border-gray-300 rounded"
-                                                    value={item.idManpower || ""}
-                                                    onChange={e => actualizarManoDeObra(item.id, "idManpower", e.target.value)}
-                                                >
-                                                    <option value="">Seleccione mano de obra</option>
-                                                    {manpowers.map(mp => (
-                                                        <option key={mp.idManpower} value={mp.idManpower}>
-                                                            {mp.name}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </td>
-
-
-                                            <td className="px-2 py-3">
-                                                <input
-                                                    className="w-23 p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                                    value={item.tipo}
-                                                    readOnly
-                                                >
-                                                </input>
-                                            </td>
-
-
-                                            <td className="px-2 py-3">
-                                                <input
-
-                                                    type="number"
-                                                    min="1"
-                                                    className="w-20 p-2 border border-gray-300 rounded text-center"
-                                                    value={item.cantidad}
-                                                    onChange={e =>
-                                                        actualizarManoDeObra(
-                                                            item.id,
-                                                            'cantidad',
-                                                            parseInt(e.target.value, 10) || 0
-                                                        )
-                                                    }
-                                                />
-                                            </td>
-
-
-                                            <td className="px-2 py-3">
-                                                <select
-
-                                                    className="w-34 p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                                    value={item.contratista}
-
-                                                    onChange={e =>
-                                                        actualizarManoDeObra(
-                                                            item.id,
-                                                            'contratista',
-                                                            e.target.value
-                                                        )
-                                                    }
-                                                >
-                                                    <option value="">Selecciona contratista</option>
-                                                    {userOptions
-                                                        .filter(u => ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name))
-                                                        .map(u => (
-                                                            <option key={u.idUser} value={u.idUser}>
-                                                                {u.firstName + ' ' + u.lastName}
-                                                            </option>
+                                        <React.Fragment key={item.id}>
+                                            {/* Fila principal: Mano de Obra */}
+                                            <tr className="hover:bg-gray-50 border-b-2 border-blue-100">
+                                                <td className="w-48 px-3 py-3">
+                                                    <select
+                                                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        value={item.idManpower || ""}
+                                                        onChange={e => actualizarManoDeObra(item.id, "idManpower", e.target.value)}
+                                                    >
+                                                        <option value="">Seleccione mano de obra</option>
+                                                        {manpowers.map(mp => (
+                                                            <option key={mp.idManpower} value={mp.idManpower}>{mp.name}</option>
                                                         ))}
-                                                </select>
-                                            </td>
+                                                    </select>
+                                                </td>
+                                                <td className="w-32 px-3 py-3">
+                                                    <input
+                                                        type="text"
+                                                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        value={item.useDetail}
+                                                        onChange={e => actualizarManoDeObra(item.id, 'useDetail', e.target.value.trim())}
+                                                    />
+                                                </td>
+                                                <td className="w-24 px-3 py-3">
+                                                    <input
+                                                        type="text"
+                                                        className="w-full p-2 border border-gray-300 rounded bg-gray-100"
+                                                        value={item.tipo}
+                                                        readOnly
+                                                    />
+                                                </td>
+                                                <td className="w-24 px-3 py-3">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        className="w-full p-2 border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        value={item.cantidad}
+                                                        onChange={e => actualizarManoDeObra(item.id, 'cantidad', parseInt(e.target.value, 10) || 0)}
+                                                    />
+                                                </td>
+                                                <td className="w-36 px-3 py-3">
+                                                    <select
+                                                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        value={item.contratista}
+                                                        onChange={e => actualizarManoDeObra(item.id, 'contratista', e.target.value)}
+                                                    >
+                                                        <option value="">Selecciona contratista</option>
+                                                        {userOptions.filter(u => ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name)).map(u => (
+                                                            <option key={u.idUser} value={u.idUser}>{u.firstName + ' ' + u.lastName}</option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="w-28 px-3 py-3">
+                                                    <input
+                                                        type="number"
+                                                        className="w-full p-2 border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        value={item.unitaryCost}
+                                                        onChange={e => actualizarManoDeObra(item.id, 'unitaryCost', parseFloat(e.target.value) || 0)}
+                                                    />
+                                                </td>
+                                                <td className="w-28 px-3 py-3">
+                                                    <input
+                                                        type="number"
+                                                        readOnly
+                                                        className="w-full p-2 border border-gray-300 rounded text-right bg-gray-100"
+                                                        value={item.totalCost}
+                                                    />
+                                                </td>
+                                                <td className="w-28 px-3 py-3">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        readOnly={!canEditFactor}
+                                                        className={`w-full p-2 border rounded text-right ${canEditFactor ? 'bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-100'}`}
+                                                        value={item.sellFactor}
+                                                        onChange={e => actualizarManoDeObra(item.id, 'sellFactor', parseFloat(e.target.value) || 0)}
+                                                    />
+                                                </td>
+                                                <td className="w-28 px-3 py-3">
+                                                    <input
+                                                        type="number"
+                                                        readOnly
+                                                        className="w-full p-2 border border-gray-300 rounded text-right bg-gray-100"
+                                                        value={item.unitSell}
+                                                    />
+                                                </td>
+                                                <td className="w-28 px-3 py-3">
+                                                    <input
+                                                        type="number"
+                                                        readOnly
+                                                        className="w-full p-2 border border-gray-300 rounded text-right bg-gray-100"
+                                                        value={item.totalSell}
+                                                    />
+                                                </td>
+                                                <td className="w-24 px-3 py-3 text-center">
+                                                    <button
+                                                        className="bg-green-500 text-white px-2 py-1 rounded text-sm hover:bg-green-600 transition-colors"
+                                                        onClick={() => agregarInsumo(item.id)}
+                                                    >
+                                                        Insumo
+                                                    </button>
+                                                </td>
+                                                <td className="w-16 px-3 py-3 text-center">
+                                                    <button
+                                                        className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                                                        onClick={() => eliminarManoDeObra(item.id)}
+                                                    >
+                                                        <FaTimes />
+                                                    </button>
+                                                </td>
+                                            </tr>
 
+                                            {/* Subtabla de insumos separada */}
+                                            {item.insumos && item.insumos.length > 0 && (
+                                                <tr>
+                                                    <td colSpan="12" className="px-6 py-4">
+                                                        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                                                            <div className="flex justify-between items-center mb-3">
+                                                                <h4 className="text-sm font-semibold text-gray-700">
+                                                                    Insumos para: {manpowers.find(mp => mp.idManpower === item.idManpower)?.name || 'Mano de obra'}
+                                                                </h4>
+                                                                <span className="text-xs text-gray-500">{item.insumos.length} insumo(s)</span>
+                                                            </div>
 
-                                            <td className="px-2 py-3">
-                                                <input
-                                                    type="number"
-                                                    className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                                    readOnly
-                                                    value={item.unitaryCost}
-                                                    onChange={e =>
-                                                        actualizarManoDeObra(
-                                                            item.id,
-                                                            'unitaryCost',
-                                                            parseFloat(e.target.value) || 0
-                                                        )
-                                                    }
-                                                />
-                                            </td>
+                                                            <div className="overflow-x-auto">
+                                                                <table className="w-full text-sm">
+                                                                    <thead>
+                                                                        <tr className="bg-gray-100 border-b">
+                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Insumo</th>
+                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Unidad</th>
+                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Cantidad</th>
+                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Proveedor</th>
+                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Costo Unit.</th>
+                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Costo Total</th>
+                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Factor Insumo</th>
+                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Venta Unit.</th>
+                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Venta Total</th>
+                                                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-600 uppercase">Eliminar</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {item.insumos.map((ins, idx) => {
+                                                                            const provs = supplyOptions.find(s => s.idSupply === ins.supply)?.providers || [];
+                                                                            const selectedSupply = supplyOptions.find(s => s.idSupply === ins.supply);
 
-
-                                            <td className="px-2 py-3">
-                                                <input
-                                                    type="number"
-                                                    className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                                    value={item.totalCost}
-                                                    readOnly
-                                                />
-                                            </td>
-
-
-                                            <td className="px-2 py-3">
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    className="w-20 p-2 border border-gray-300 rounded text-center"
-                                                    value={item.sellFactor}
-                                                    onChange={e =>
-                                                        actualizarManoDeObra(
-                                                            item.id,
-                                                            'sellFactor',
-                                                            parseFloat(e.target.value) || 0
-                                                        )
-                                                    }
-                                                />
-                                            </td>
-
-
-                                            <td className="px-2 py-3">
-                                                <input
-                                                    type="number"
-                                                    className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                                    value={item.unitSell}
-                                                    readOnly
-                                                />
-                                            </td>
-
-
-                                            <td className="px-2 py-3">
-                                                <input
-                                                    type="number"
-                                                    className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                                    value={item.totalSell}
-                                                    readOnly
-                                                />
-                                            </td>
-
-
-                                            <td className="px-2 py-3 text-center">
-                                                <button
-                                                    className="text-red-500"
-                                                    onClick={() => eliminarManoDeObra(item.id)}
-                                                >
-                                                    <FaTimes />
-                                                </button>
-                                            </td>
-                                        </tr>
+                                                                            return (
+                                                                                <tr key={`${item.id}-insumo-${idx}`} className="border-b border-gray-200 hover:bg-gray-100">
+                                                                                    <td className="px-3 py-2">
+                                                                                        <select
+                                                                                            className="w-full p-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-gray-400"
+                                                                                            value={ins.supply}
+                                                                                            onChange={e => actualizarInsumo(item.id, idx, 'supply', e.target.value)}
+                                                                                        >
+                                                                                            <option value="">— Selecciona Insumo —</option>
+                                                                                            {supplyOptions.map(s => (
+                                                                                                <option key={s.idSupply} value={s.idSupply}>{s.name}</option>
+                                                                                            ))}
+                                                                                        </select>
+                                                                                    </td>
+                                                                                    <td className="px-3 py-2">
+                                                                                        <span className="text-sm text-gray-600">
+                                                                                            {selectedSupply?.measurementUnit || '-'}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="px-3 py-2">
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            className="w-20 p-1 border border-gray-300 rounded text-center text-sm focus:ring-1 focus:ring-gray-400"
+                                                                                            value={ins.cantidad}
+                                                                                            onChange={e => actualizarInsumo(item.id, idx, 'cantidad', e.target.value)}
+                                                                                        />
+                                                                                    </td>
+                                                                                    <td className="px-3 py-2">
+                                                                                        <select
+                                                                                            className="w-full p-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-gray-400"
+                                                                                            value={ins.selectedProvider}
+                                                                                            onChange={e => actualizarInsumo(item.id, idx, 'selectedProvider', e.target.value)}
+                                                                                        >
+                                                                                            <option value="">— Proveedor —</option>
+                                                                                            {provs.map(p => (
+                                                                                                <option key={p.idProvider} value={p.idProvider}>{p.name}</option>
+                                                                                            ))}
+                                                                                        </select>
+                                                                                    </td>
+                                                                                    <td className="px-3 py-2">
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            className="w-24 p-1 border border-gray-300 rounded text-right text-sm focus:ring-1 focus:ring-gray-400"
+                                                                                            value={ins.unitaryCost}
+                                                                                            onChange={e => actualizarInsumo(item.id, idx, 'unitaryCost', e.target.value)}
+                                                                                        />
+                                                                                    </td>
+                                                                                    <td className="px-3 py-2">
+                                                                                        <span className="text-sm font-medium text-gray-800">
+                                                                                            {ins.costoTotal}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="px-3 py-2">
+                                                                                        <input
+                                                                                            type="number"
+                                                                                            step="0.01"
+                                                                                            readOnly={!canEditFactor}
+                                                                                            className={`w-20 p-1 border rounded text-right text-sm ${canEditFactor ? 'bg-white focus:ring-1 focus:ring-gray-400' : 'bg-gray-100'}`}
+                                                                                            value={ins.factorInsumo}
+                                                                                            onChange={e => actualizarInsumo(item.id, idx, 'factorInsumo', parseFloat(e.target.value) || 1.3)}
+                                                                                        />
+                                                                                    </td>
+                                                                                    <td className="px-3 py-2">
+                                                                                        <span className="text-sm font-medium text-black-600">
+                                                                                            {ins.ventaUnitaria}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="px-3 py-2">
+                                                                                        <span className="text-sm font-bold text-black-700">
+                                                                                            {ins.ventaTotal}
+                                                                                        </span>
+                                                                                    </td>
+                                                                                    <td className="px-3 py-2 text-center">
+                                                                                        <button
+                                                                                            className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                                                                                            onClick={() => eliminarInsumo(item.id, idx)}
+                                                                                        >
+                                                                                            <FaTimes size={12} />
+                                                                                        </button>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            );
+                                                                        })}
+                                                                    </tbody>
+                                                                    <tfoot>
+                                                                        <tr className="bg-gray-200 font-semibold">
+                                                                            <td colSpan="5" className="px-3 py-2 text-right text-sm">Subtotal Insumos:</td>
+                                                                            <td className="px-3 py-2 text-right text-sm">
+                                                                                ${item.insumos.reduce((sum, ins) => sum + (parseFloat(ins.costoTotal) || 0), 0).toLocaleString()}
+                                                                            </td>
+                                                                            <td className="px-3 py-2"></td>
+                                                                            <td className="px-3 py-2"></td>
+                                                                            <td className="px-3 py-2 text-right text-sm text-black-700">
+                                                                                ${item.insumos.reduce((sum, ins) => sum + (parseFloat(ins.ventaTotal) || 0), 0).toLocaleString()}
+                                                                            </td>
+                                                                            <td className="px-3 py-2"></td>
+                                                                        </tr>
+                                                                    </tfoot>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </React.Fragment>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
 
-                        <div className="flex justify-end mt-4 space-x-6">
-                            <div className="text-right">
-                                <p className="font-medium">Subtotal costos de mano de obra: ${subtotalCostosManoObra.toLocaleString()}</p>
-                                <p className="font-medium">Subtotal venta mano de obra: ${subtotalVentasManoObra.toLocaleString()}</p>
+                        <div className="mt-6 border-t pt-4">
+                            <div className="flex justify-end">
+                                <div className="text-right space-y-2">
+                                    <div className="flex justify-between min-w-96">
+                                        <span className="text-gray-600">Subtotal costos de mano de obra:</span>
+                                        <span className="font-semibold">${subtotalCostosManoObra.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between min-w-96">
+                                        <span className="text-gray-600">Subtotal venta mano de obra:</span>
+                                        <span className="font-semibold">${subtotalVentasManoObra.toLocaleString()}</span>
+                                    </div>
+                                    {/* <div className="border-t border-gray-300 pt-2">
+                            <div className="flex justify-between min-w-96">
+                                <span className="text-gray-600">Subtotal costos insumos:</span>
+                                <span className="font-semibold">${subtotalCostosInsumos.toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between min-w-96">
+                                <span className="text-gray-600">Subtotal venta insumos:</span>
+                                <span className="font-semibold">${subtotalVentasInsumos.toLocaleString()}</span>
+                            </div>
+                        </div>  */}
+
+
+                                </div>
                             </div>
                         </div>
                     </div>
                 )}
             </div>
+
+            {/* informacion de cotizacion de factura */}
+
+            <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+                <div
+                    className="bg-white p-4 flex justify-between items-center cursor-pointer"
+                    onClick={() => {
+                        if (!soloPuedeEditarRepuestos && !soloPuedeEditarManoObra) toggleSeccion('infoCotizacion')
+                    }}
+                >
+                    <h2 className="text-lg font-semibold text-blue-800">Información de cotizacion de factura</h2>
+                    {secciones.infoCotizacion ? <FaChevronUp /> : <FaChevronDown />}
+                </div>
+
+                {secciones.infoCotizacion && (
+                    <div className="bg-white p-4 border-t border-gray-200">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">No. cotización</label>
+                                <input
+                                    value={formulario.numeroCotizacion}
+                                    name="numeroCotizacion"
+                                    onChange={handleCambioFormulario}
+                                    type="text" className="w-full p-2 border border-gray-300 rounded" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de cotización</label>
+                                <input
+                                    value={formulario.fechaCotizacion}
+                                    name='fechaCotizacion'
+                                    onChange={handleCambioFormulario}
+                                    type="date" className="w-full p-2 border border-gray-300 rounded" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Cotizado por</label>
+
+                                <select
+                                    name="cotizadoPor"
+                                    value={formulario.cotizadoPor}
+                                    onChange={handleCambioFormulario}
+                                    className="w-full p-2 border border-gray-300 rounded"
+                                >
+                                    <option value="">Selecciona usuario</option>
+                                    {userOptions.map(u => (
+                                        <option key={u.idUser} value={u.idUser}>{`${u.firstName} ${u.lastName}`}</option>
+                                    ))}
+                                </select>
+
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">No. facturación</label>
+                                <input
+                                    value={formulario.numeroFacturacion}
+                                    name='numeroFacturacion'
+                                    onChange={handleCambioFormulario}
+                                    type="text" className="w-full p-2 border border-gray-300 rounded" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Facturado por</label>
+                                <select
+                                    name="facturadoPor"
+                                    value={formulario.facturadoPor}
+                                    onChange={handleCambioFormulario}
+                                    className="w-full p-2 border border-gray-300 rounded"
+                                >
+                                    <option value="">Selecciona usuario</option>
+                                    {userOptions.map(u => (
+                                        <option key={u.idUser} value={u.idUser}>
+                                            {`${u.firstName} ${u.lastName}`}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Número de acta de entrega</label>
+                                <input
+                                    value={formulario.numeroActaEntrega}
+                                    name='numeroActaEntrega'
+                                    onChange={handleCambioFormulario}
+                                    type="text" className="w-full p-2 border border-gray-300 rounded" />
+                            </div>
+                        </div>
+                    </div>
+
+                )}
+            </div>
+
 
             {/* Total */}
             <div className="mb-6 border border-gray-200 rounded-lg overflow-hidden">
@@ -1722,6 +1969,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                     <span>Subtotal costos de mano de obra:</span>
                                     <span className="font-medium">${subtotalCostosManoObra.toLocaleString()}</span>
                                 </div>
+
                                 <div className="flex justify-between border-t border-gray-200 pt-2">
                                     <span>Subtotal costos:</span>
                                     <span className="font-medium">${subtotalCostos.toLocaleString()}</span>
@@ -1740,6 +1988,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                     <span>Subtotal venta mano de obra:</span>
                                     <span className="font-medium">${subtotalVentasManoObra.toLocaleString()}</span>
                                 </div>
+
                                 <div className="flex justify-between border-t border-gray-200 pt-2">
                                     <span>Subtotal venta:</span>
                                     <span className="font-medium">${subtotalVentas.toLocaleString()}</span>
