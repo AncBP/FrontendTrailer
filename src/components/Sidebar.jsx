@@ -10,18 +10,15 @@ import compra from "../assets/piezas-de-repuesto.png";
 import manoDeObra from "../assets/ingeniero.png"
 import proveedores from "../assets/proveedor64.png";
 import listaIcon from "../assets/lista.png";
-import contactos from "../assets/agenda.png"
-import vehiculos from "../assets/vehiculos.png"
-import Insumos from '../Page/Insumos/Index';
+import contactos from "../assets/agenda.png";
+import vehiculos from "../assets/vehiculos.png";
+import suministros from '../assets/suministro.png';
 
 // Define aquí los roles permitidos por sección
 const accessControl = {
   dashboard: [
     'Administrador',
     'Usuario',
-    'Contratista',
-    'Mecánico',
-    'Colaborador',
     'Almacenista',
     'Auxiliar Administrativo',
     'Coordinador de Operaciones',
@@ -74,7 +71,7 @@ const accessControl = {
   ],
   Insumos: [
     'Administrador',
-    'coordinador de Operaciones'
+    'Coordinador de Operaciones'
   ]
 };
 
@@ -258,7 +255,7 @@ export default function Sidebar({ user }) {
                     `flex items-center ${collapsed ? 'justify-center px-1' : 'px-3'} py-2 rounded text-black text-sm no-underline transition duration-200 hover:bg-white hover:font-bold ${isActive ? 'bg-white font-bold' : ''}`
                   }
                 >
-                  <img src={compra} alt="Repuestos" className="w-5 flex-shrink-0" />
+                  <img src={suministros} alt="Repuestos" className="w-5 flex-shrink-0" />
                   {!collapsed && <span className="ml-2">Insumos</span>}
                 </NavLink>
               </li>

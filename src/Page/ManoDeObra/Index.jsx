@@ -131,8 +131,6 @@ const ManoDeObra = () => {
     setNuevoManoDeObra({
       idManPower: item.idManpower,
       nombre: item.name,
-      //costoUnitario: item.unitaryCost,
-      tipoVehiculo: item.type,
       active: item.active,
     });
     setModo('editar');
@@ -225,8 +223,6 @@ const ManoDeObra = () => {
           <thead>
             <tr className="text-left">
               <th className="py-2 text-sm font-medium text-gray-600">Nombre</th>
-              
-              <th className="py-2 text-sm font-medium text-gray-600">Tipo de vehiculo</th>
               <th className="py-2"></th>
             </tr>
           </thead>
@@ -235,37 +231,59 @@ const ManoDeObra = () => {
               currentItems.map(Man => (
                 <tr key={Man.idManpower} className="border-t border-gray-100">
                   <td className="py-2">{Man.name}</td>
-                 
-                  <td className="py-2">{Man.type || ''}</td>
+
+               
                   <td className="py-2 flex gap-2 justify-end">
-                  
-                    <button
-                      onClick={() => {
-                        console.log('Attempting to delete Man with ID:', Man.idManpower); 
-                        handleEliminar(Man.idManpower);
-                      }}
-                      disabled={!Man.active}
-                      className={`p-1 transition-opacity ${!Man.active
-                        ? 'opacity-50 cursor-not-allowed'
-                        : 'hover:text-red-600'
-                        }`}
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                    <button
+                      <button
                       onClick={() => handleEditar(Man)}
                       disabled={!Man.active}
-                      className={`p-1 transition-opacity ${!Man.active
-                        ? 'opacity-50 cursor-not-allowed'
-                        : 'hover:text-blue-600'
-                        }`}
+                      className={`
+                        p-1                              
+                        bg-white                        
+                        rounded-full                    
+                        shadow-md                       
+                        hover:shadow-xl                 
+                        transform hover:-translate-y-0.5 
+                        transition-all duration-150    
+                        focus:outline-none
+                        focus:ring-2 focus:ring-offset-2 focus:ring-red-300 
+                        ${!Man.active
+                          ? 'opacity-50 cursor-not-allowed'
+                          : ''
+                        }
+            `}
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002 2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                     </button>
+                    <button
+                      onClick={() => {
+                        console.log('Attempting to delete Man with ID:', Man.idManpower);
+                        handleEliminar(Man.idManpower);
+                      }}
+                      disabled={!Man.active}
+                      className={`
+                        p-1                              
+                        bg-white                        
+                        rounded-full                    
+                        shadow-md                       
+                        hover:shadow-xl                 
+                        transform hover:-translate-y-0.5 
+                        transition-all duration-150    
+                        focus:outline-none
+                        focus:ring-2 focus:ring-offset-2 focus:ring-red-300 
+                        ${!Man.active
+                          ? 'opacity-50 cursor-not-allowed'
+                          : ''
+                        }
+            `}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                   
                   </td>
                 </tr>
               ))
@@ -308,7 +326,7 @@ const ManoDeObra = () => {
 
             <form onSubmit={(e) => { e.preventDefault(); handleGuardar(); }}>
               <div className="flex gap-x-4 mb-4">
-                <div className="w-1/2">
+                <div className="w-full">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
                   <textarea
                     value={nuevoManoDeObra.nombre}
@@ -316,27 +334,10 @@ const ManoDeObra = () => {
                     name="nombre"
                     required
                     className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    rows={1} 
+                    rows={1}
                   />
                 </div>
-                 <div className="w-1/2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tipo de vehículo
-                  </label>
-                  <select
-                    name="tipoVehiculo"
-                    value={nuevoManoDeObra.tipoVehiculo}
-                    onChange={handleChange}
-                    className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Selecciona tipo de vehículo</option>
-                    {vehicleTypeOptions.map(vt => (
-                      <option key={vt.idVehiculeType} value={vt.name}>
-                        {vt.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+               
               </div>
 
               <div className="flex justify-end space-x-3 mt-6">

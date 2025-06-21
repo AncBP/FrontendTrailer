@@ -235,7 +235,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 setOpcionesCargadas(true);
 
             } catch (error) {
-                console.error('Error cargando opciones:', error);
+
                 toast.error("Error al cargar las opciones iniciales");
                 setOpcionesCargadas(true);
             }
@@ -251,7 +251,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
         const cargarDatosOrden = async () => {
             try {
                 const resp = await axios.get(`${API_URL}/order/${id}`);
-                console.log('GET /order resp:', resp.data);
+
 
                 // Extrae la orden ya sea de resp.data.data[0], resp.data.data o resp.data
                 let orden;
@@ -310,7 +310,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     const repuestosData = orden.sparePartMaterials.map((spm, idx) => ({
                         id: idx + 1,
                         idSparePartMaterial: spm.sparePartMaterial?.idSparePartMaterial || '',
-                        tipo: spm.sparePartMaterial?.type || '',
+
                         cantidad: spm.cantidad || 0,
                         proveedor: spm.selectedProvider?.idProvider || '',
                         costoUnitario: spm.unitaryCost || 0,
@@ -329,11 +329,14 @@ const NuevaOrdenTrabajo = ({ user }) => {
                         id: idx + 1,
                         idManpower: mp.manpower?.idManpower || '',
                         descripcion: mp.manpower?.name || '',
-                        tipo: mp.manpower?.type || '',
+
                         useDetail: mp.useDetail || '',
                         cantidad: mp.cantidad || 0,
                         unitaryCost: mp.unitaryCost ?? 0,
-                        contratista: mp.manpower?.contractor?.idUser || '',
+                        contratista: mp.selectedContractor?.idUser
+                            || mp.contractor?.idUser
+                            || mp.manpower?.contractor?.idUser
+                            || '',
                         totalCost: mp.costoTotal || 0,
                         sellFactor: mp.factorVenta || 0,
                         unitSell: mp.ventaUnitaria || 0,
@@ -348,15 +351,33 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                 selectedProvider: sup.selectedProvider?.idProvider || '',
                                 cantidad: sup.cantidad || '',
                                 unitaryCost: sup.unitaryCost || '',
-                                factorInsumo: sup.factorVenta || '',
-                                // Recalcular o tomar directo:
                                 costoTotal: sup.costoTotal || (sup.cantidad * sup.unitaryCost),
-                                ventaUnitaria: sup.ventaUnitaria || Math.round(sup.unitaryCost * (sup.factorVenta || 1)),
-                                ventaTotal: sup.ventaTotal || Math.round(sup.cantidad * Math.round(sup.unitaryCost * (sup.factorVenta || 1)))
+
                             }))
                             : []
                     }));
                     setManoDeObra(manoObraData);
+                }
+
+                if (Array.isArray(orden.pricings) && orden.pricings.length) {
+                    const p = orden.pricings[0];
+                    setFormulario(f => ({
+                        ...f,
+                        numeroCotizacion: p.pricingNumber || '',
+                        fechaCotizacion: toInputDate(p.pricingDate),
+                        cotizadoPor: p.pricedBy?.idUser || ''
+                    }));
+                }
+
+                if (Array.isArray(orden.billings) && orden.billings.length) {
+                    const b = orden.billings[0];
+                    setFormulario(f => ({
+                        ...f,
+                        numeroFacturacion: b.billingNumber || '',
+                        fechaFacturacion: toInputDate(b.billingDate),
+                        facturadoPor: b.billedBy?.idUser || '',
+                        numeroActaEntrega: b.actNumber || ''
+                    }));
                 }
                 // Contactos adicionales
                 if (orden.client?.idClient) {
@@ -399,8 +420,8 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
         const subtotalVentasManoObra = manoDeObra.reduce((sum, m) => {
             const ventaMano = m.totalSell || 0;
-            const ventaInsumos = (m.insumos || []).reduce((s, i) => s + (i.ventaTotal || 0), 0);
-            return sum + ventaMano + ventaInsumos;
+
+            return sum + ventaMano;
         }, 0);
 
         // Totales generales
@@ -503,7 +524,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
             ? formulario.orderStatusId.toString()
             : null;
 
-        const isTrabajoRealizado = formulario.orderStatusId === 'c8cc358e-3a33-408c-bb35-41aaf0ed2853';
+        const isTrabajoRealizado = formulario.orderStatusId === idTrabajoRealizado;
 
         // --- NUEVO PAYLOAD ---
         const payloadOrder = {
@@ -540,7 +561,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
             sparePartMaterials: repuestos.map(r => ({
                 sparePartMaterial: r.idSparePartMaterial,
-                selectedProvider: r.proveedor,
+               selectedProvider: r.proveedor || null,
                 unitaryCost: Number(r.costoUnitario),
                 cantidad: Number(r.cantidad),
                 costoTotal: Number(r.costoTotal),
@@ -551,16 +572,16 @@ const NuevaOrdenTrabajo = ({ user }) => {
             manpowers: manoDeObra.map(m => ({
                 manpower: m.idManpower,
                 unitaryCost: Number(m.unitaryCost),
-                useDetail: m.detalles || '',
+                useDetail: m.useDetail || '',
                 cantidad: Number(m.cantidad),
                 costoTotal: Number(m.totalCost),
                 factorVenta: Number(m.sellFactor),
                 ventaUnitaria: Number(m.unitSell),
                 ventaTotal: Number(m.totalSell),
-                contractor: m.contratista || null,
+                selectedContractor: m.contratista || null,
                 supplies: (m.insumos || []).map(s => ({
                     supply: s.supply,
-                    selectedProvider: s.selectedProvider,
+                    selectedProvider: s.selectedProvider || null,
                     unitaryCost: Number(s.unitaryCost),
                     cantidad: Number(s.cantidad),
                     costoTotal: Number(s.costoTotal),
@@ -599,7 +620,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                         ...m,
                         insumos: [
                             ...(m.insumos || []),
-                            { supply: '', cantidad: '', selectedProvider: '', unitaryCost: '', costoTotal: 0, factorVenta: '', ventaUnitaria: 0, ventaTotal: 0 }
+                            { supply: '', cantidad: '', selectedProvider: '', unitaryCost: '', costoTotal: 0 }
                         ]
                     }
                     : m
@@ -614,29 +635,21 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 const nuevos = [...(m.insumos || [])];
                 const ins = { ...nuevos[idx] };
 
-                switch (campo) {
-                    case 'supply':
-                        ins.supply = valor;
-
-                        ins.unitaryCost = supplyOptions.find(s => s.idSupply === valor)?.unitaryCost || 0;
-                        break;
-                    case 'selectedProvider':
-                        ins.selectedProvider = valor; // string
-                        break;
-                    case 'cantidad':
-                    case 'unitaryCost':
-                    case 'factorInsumo':
-                        ins[campo] = Number(valor);
-                        break;
-                    default:
-                        ins[campo] = valor;
+                if (campo === 'supply') {
+                    ins.supply = valor;
+                    ins.unitaryCost = supplyOptions.find(s => s.idSupply === valor)?.unitaryCost || 0;
+                } else if (campo === 'selectedProvider') {
+                    ins.selectedProvider = valor;
+                } else if (campo === 'cantidad' || campo === 'unitaryCost') {
+                    ins[campo] = Number(valor);
+                } else {
+                    ins[campo] = valor;
                 }
 
                 // Recalcular totales de insumo:
                 ins.costoTotal = ins.cantidad * ins.unitaryCost;
-                // Venta unitaria = unitaryCost × factorInsumo
-                ins.ventaUnitaria = Math.round(ins.unitaryCost * ins.factorInsumo);
-                ins.ventaTotal = ins.ventaUnitaria * ins.cantidad;
+
+
 
                 nuevos[idx] = ins;
                 return { ...m, insumos: nuevos };
@@ -702,9 +715,8 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 return {
                     ...r,
                     idSparePartMaterial: selectedId,
-                    proveedor: mat.provider?.name || 'Sin proveedor',
+                    proveedor: mat.provider?.name || '',
                     costoUnitario: costoUnitarioBackend,
-                    tipo: mat.type || '',
                     cantidad: cantidadActual,
                     costoTotal: 0,
                     ventaUnitaria: ventaUnitariaCalculada,
@@ -774,7 +786,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 id: nuevoId,
                 descripcion: '',
                 tipo: '',
-                detalles: '',
+                useDetail: '',
                 cantidad: '',
                 totalCost: 0,
                 sellFactor: 0,
@@ -890,8 +902,8 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
     const subtotalVentasManoObra = manoDeObra.reduce((sum, m) => {
         const ventaMano = m.totalSell || 0;
-        const ventaInsumos = (m.insumos || []).reduce((s, i) => s + (i.ventaTotal || 0), 0);
-        return sum + ventaMano + ventaInsumos;
+
+        return sum + ventaMano;
     }, 0);
 
     const subtotalCostos = subtotalCostosRepuestos + subtotalCostosManoObra;
@@ -934,7 +946,8 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                     onChange={handleCambioFormulario}
                                     name="numeroOrden"
                                     type="text"
-                                    className="w-full p-2 border border-gray-300 rounded"
+                                    readOnly
+                                    className="w-full p-2 border border-gray-300 rounded text-left bg-gray-100"
                                 />
                             </div>
                             <div>
@@ -1315,7 +1328,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     }}
                 >
                     <h2 className="text-lg font-semibold text-blue-800">
-                        Repuestos y Materiales
+                        Repuestos
                     </h2>
                     {secciones.repuestosMateriales ? <FaChevronUp /> : <FaChevronDown />}
                 </div>
@@ -1337,7 +1350,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                 <thead>
                                     <tr className="bg-gray-50 text-xs text-gray-500 uppercase">
                                         <th className="px-4 py-2">Repuesto</th>
-                                        <th className="px-4 py-2">Tipo</th>
+
                                         <th className="px-4 py-2">Cantidad</th>
                                         <th className="px-4 py-2">Proveedor</th>
                                         <th className="px-4 py-2">Costo Unitario</th>
@@ -1368,18 +1381,6 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                 </select>
                                             </td>
 
-                                            {/* === TIPO === */}
-                                            <td className="px-2 py-3">
-
-                                                <input
-                                                    type='text'
-                                                    className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                                    value={repuesto.tipo}
-                                                    readOnly
-                                                >
-
-                                                </input>
-                                            </td>
 
                                             {/* === CANTIDAD === */}
                                             <td className="px-2 py-3">
@@ -1404,15 +1405,10 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                     const providersForMat = mat?.providers || [];
                                                     return (
                                                         <select
-                                                            className="w-30 p-2 border border-gray-300 rounded bg-white"
+                                                            disabled={!canEditFactor}
+                                                            className={`w-30 p-2 border border-gray-300 rounded ${canEditFactor ? 'bg-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
                                                             value={repuesto.proveedor}
-                                                            onChange={e =>
-                                                                actualizarRepuesto(
-                                                                    repuesto.id,
-                                                                    "proveedor",
-                                                                    e.target.value
-                                                                )
-                                                            }
+                                                            onChange={e => actualizarRepuesto(repuesto.id, "proveedor", e.target.value)}
                                                         >
                                                             <option value="">Selecciona proveedor</option>
                                                             {providersForMat.map(p => (
@@ -1421,6 +1417,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                                 </option>
                                                             ))}
                                                         </select>
+
                                                     );
                                                 })()}
                                             </td>
@@ -1428,17 +1425,23 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                             {/* === Costo Unitario === */}
                                             <td className="px-2 py-3">
                                                 <input
-                                                    type="number"
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    className={`
+                                                    w-24 p-2 border border-gray-300 rounded text-left
+                                                   bg-white text-gray-900 border-gray-300`}
 
-                                                    className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                                    value={repuesto.costoUnitario}
-                                                    onChange={(e) =>
-                                                        actualizarRepuesto(
-                                                            repuesto.id,
-                                                            "costoUnitario",
-                                                            parseFloat(e.target.value) || 0
-                                                        )
+                                                    value={
+                                                        repuesto.costoUnitario != null
+                                                            ? repuesto.costoUnitario.toLocaleString('es-CO')
+                                                            : ''
                                                     }
+                                                    onChange={e => {
+
+                                                        const raw = e.target.value.replace(/\D/g, '');
+                                                        const num = raw ? parseInt(raw, 10) : 0;
+                                                        actualizarRepuesto(repuesto.id, "costoUnitario", num);
+                                                    }}
 
                                                 />
                                             </td>
@@ -1446,10 +1449,10 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                             {/* === Costo Total === */}
                                             <td className="px-2 py-3">
                                                 <input
-                                                    type="number"
+                                                    type="text"
                                                     className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
 
-                                                    value={repuesto.costoTotal}
+                                                    value={(repuesto.costoTotal ?? 0).toLocaleString('es-CO')}
                                                     readOnly
                                                 />
                                             </td>
@@ -1480,10 +1483,10 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                             {/* === Venta Unitaria === */}
                                             <td className="px-2 py-3">
                                                 <input
-                                                    type="number"
+                                                    type="text"
                                                     readOnly
                                                     className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                                    value={repuesto.ventaUnitaria}
+                                                    value={(repuesto.ventaUnitaria ?? 0).toLocaleString('es-CO')}
                                                     onChange={(e) =>
                                                         actualizarRepuesto(
                                                             repuesto.id,
@@ -1497,9 +1500,9 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                             {/* === Venta Total === */}
                                             <td className="px-2 py-3">
                                                 <input
-                                                    type="number"
+                                                    type="text"
                                                     className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                                    value={repuesto.ventaTotal}
+                                                    value={(repuesto.ventaTotal ?? 0).toLocaleString('es-CO')}
                                                     readOnly
                                                 />
                                             </td>
@@ -1524,7 +1527,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                         <div className="flex justify-end mt-4 space-x-6">
                             <div className="text-right">
                                 <p className="font-medium">
-                                    Subtotal costos: ${subtotalCostosRepuestos.toLocaleString()}
+                                    Subtotal costos: ${subtotalCostosRepuestos.toLocaleString('es-CO')}
                                 </p>
                                 <p className="font-medium">
                                     Subtotal venta: ${subtotalVentasRepuestos.toLocaleString()}
@@ -1566,7 +1569,6 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                     <tr className="bg-gray-50">
                                         <th className="w-48 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
                                         <th className="w-32 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Detalle</th>
-                                        <th className="w-24 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
                                         <th className="w-24 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cantidad</th>
                                         <th className="w-36 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Contratista</th>
                                         <th className="w-28 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Costo Unitario</th>
@@ -1581,11 +1583,11 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {manoDeObra.map(item => (
                                         <React.Fragment key={item.id}>
-                                            {/* Fila principal: Mano de Obra */}
+
                                             <tr className="hover:bg-gray-50 border-b-2 border-blue-100">
                                                 <td className="w-48 px-3 py-3">
                                                     <select
-                                                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        className="w-100 p-2 border border-gray-300 rounded bg-white"
                                                         value={item.idManpower || ""}
                                                         onChange={e => actualizarManoDeObra(item.id, "idManpower", e.target.value)}
                                                     >
@@ -1596,33 +1598,28 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                     </select>
                                                 </td>
                                                 <td className="w-32 px-3 py-3">
-                                                    <input
+                                                    <textarea
                                                         type="text"
-                                                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        className="w-50 p-2 border border-gray-300 rounded bg-white"
                                                         value={item.useDetail}
-                                                        onChange={e => actualizarManoDeObra(item.id, 'useDetail', e.target.value.trim())}
+                                                        onChange={e => actualizarManoDeObra(item.id, 'useDetail', e.target.value)}
+                                                        rows={1}
+                                                        style={{ whiteSpace: 'pre-wrap' }}
                                                     />
                                                 </td>
-                                                <td className="w-24 px-3 py-3">
-                                                    <input
-                                                        type="text"
-                                                        className="w-full p-2 border border-gray-300 rounded bg-gray-100"
-                                                        value={item.tipo}
-                                                        readOnly
-                                                    />
-                                                </td>
+
                                                 <td className="w-24 px-3 py-3">
                                                     <input
                                                         type="number"
                                                         min="1"
-                                                        className="w-full p-2 border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        className="w-20 p-2 border border-gray-300 rounded bg-white"
                                                         value={item.cantidad}
                                                         onChange={e => actualizarManoDeObra(item.id, 'cantidad', parseInt(e.target.value, 10) || 0)}
                                                     />
                                                 </td>
                                                 <td className="w-36 px-3 py-3">
                                                     <select
-                                                        className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        className="w-40 p-2 border border-gray-300 rounded bg-white"
                                                         value={item.contratista}
                                                         onChange={e => actualizarManoDeObra(item.id, 'contratista', e.target.value)}
                                                     >
@@ -1634,18 +1631,23 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                 </td>
                                                 <td className="w-28 px-3 py-3">
                                                     <input
-                                                        type="number"
-                                                        className="w-full p-2 border border-gray-300 rounded text-right focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                        value={item.unitaryCost}
-                                                        onChange={e => actualizarManoDeObra(item.id, 'unitaryCost', parseFloat(e.target.value) || 0)}
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        pattern="\d*"
+                                                        className={'w-24 p-2 border border-gray-300 rounded text-left bg-white text-gray-900 border-gray-300'}
+                                                        value={item.unitaryCost || ''}
+                                                        onChange={e => {
+                                                            const val = parseFloat(e.target.value) || 0
+                                                            actualizarManoDeObra(item.id, 'unitaryCost', val)
+                                                        }}
                                                     />
                                                 </td>
                                                 <td className="w-28 px-3 py-3">
                                                     <input
-                                                        type="number"
+                                                        type="text"
                                                         readOnly
-                                                        className="w-full p-2 border border-gray-300 rounded text-right bg-gray-100"
-                                                        value={item.totalCost}
+                                                        className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
+                                                        value={(item.totalCost ?? 0).toLocaleString('es-CO')}
                                                     />
                                                 </td>
                                                 <td className="w-28 px-3 py-3">
@@ -1653,25 +1655,30 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                         type="number"
                                                         step="0.01"
                                                         readOnly={!canEditFactor}
-                                                        className={`w-full p-2 border rounded text-right ${canEditFactor ? 'bg-white text-gray-900 focus:ring-2 focus:ring-blue-500 focus:border-blue-500' : 'bg-gray-100'}`}
+                                                        className={`
+                                                        w-24 p-2 border border-gray-300 rounded text-left
+                                                        ${canEditFactor
+                                                                ? 'bg-white text-gray-900 border-gray-300'
+                                                                : 'bg-gray-100 text-gray-500'}
+                        `}
                                                         value={item.sellFactor}
                                                         onChange={e => actualizarManoDeObra(item.id, 'sellFactor', parseFloat(e.target.value) || 0)}
                                                     />
                                                 </td>
                                                 <td className="w-28 px-3 py-3">
                                                     <input
-                                                        type="number"
+                                                        type="text"
                                                         readOnly
-                                                        className="w-full p-2 border border-gray-300 rounded text-right bg-gray-100"
-                                                        value={item.unitSell}
+                                                        className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
+                                                        value={(item.unitSell ?? 0).toLocaleString('es-CO')}
                                                     />
                                                 </td>
                                                 <td className="w-28 px-3 py-3">
                                                     <input
-                                                        type="number"
+                                                        type="text"
                                                         readOnly
-                                                        className="w-full p-2 border border-gray-300 rounded text-right bg-gray-100"
-                                                        value={item.totalSell}
+                                                        className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
+                                                        value={(item.totalSell ?? 0).toLocaleString('es-CO')}
                                                     />
                                                 </td>
                                                 <td className="w-24 px-3 py-3 text-center">
@@ -1712,11 +1719,9 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Unidad</th>
                                                                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Cantidad</th>
                                                                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Proveedor</th>
-                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Costo Unit.</th>
+                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Costo Unitario.</th>
                                                                             <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Costo Total</th>
-                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Factor Insumo</th>
-                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Venta Unit.</th>
-                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Venta Total</th>
+                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase"></th>
                                                                             <th className="px-3 py-2 text-center text-xs font-medium text-gray-600 uppercase">Eliminar</th>
                                                                         </tr>
                                                                     </thead>
@@ -1734,9 +1739,14 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                                                             onChange={e => actualizarInsumo(item.id, idx, 'supply', e.target.value)}
                                                                                         >
                                                                                             <option value="">— Selecciona Insumo —</option>
-                                                                                            {supplyOptions.map(s => (
-                                                                                                <option key={s.idSupply} value={s.idSupply}>{s.name}</option>
-                                                                                            ))}
+                                                                                            {supplyOptions
+                                                                                                .filter(s => s.active)
+                                                                                                .map(s => (
+                                                                                                    <option key={s.idSupply} value={s.idSupply}>
+                                                                                                        {s.name}
+                                                                                                    </option>
+                                                                                                ))
+                                                                                            }
                                                                                         </select>
                                                                                     </td>
                                                                                     <td className="px-3 py-2">
@@ -1754,7 +1764,8 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                                                     </td>
                                                                                     <td className="px-3 py-2">
                                                                                         <select
-                                                                                            className="w-full p-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-gray-400"
+                                                                                            disabled={!canEditFactor}
+                                                                                            className={`w-30 p-2 border border-gray-300 rounded ${canEditFactor ? 'bg-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
                                                                                             value={ins.selectedProvider}
                                                                                             onChange={e => actualizarInsumo(item.id, idx, 'selectedProvider', e.target.value)}
                                                                                         >
@@ -1766,37 +1777,40 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                                                     </td>
                                                                                     <td className="px-3 py-2">
                                                                                         <input
-                                                                                            type="number"
-                                                                                            className="w-24 p-1 border border-gray-300 rounded text-right text-sm focus:ring-1 focus:ring-gray-400"
-                                                                                            value={ins.unitaryCost}
-                                                                                            onChange={e => actualizarInsumo(item.id, idx, 'unitaryCost', e.target.value)}
+                                                                                            type="text"
+                                                                                            inputMode="numeric"
+                                                                                            pattern="\d*"
+                                                                                            readOnly={!canEditFactor}
+                                                                                            className={`
+                                                                                            w-24 p-2 border border-gray-300 rounded text-left
+                                                                                            ${canEditFactor
+                                                                                                    ? 'bg-white text-gray-900 border-gray-300'
+                                                                                                    : 'bg-gray-100 text-gray-500'}
+                                                                                            `}
+                                                                                            value={
+                                                                                                ins.unitaryCost != null
+                                                                                                    ? ins.unitaryCost.toLocaleString('es-CO')
+                                                                                                    : ''
+                                                                                            }
+                                                                                            onChange={e => {
+                                                                                                const raw = e.target.value.replace(/\D/g, '')
+                                                                                                const num = raw ? parseInt(raw, 10) : 0
+                                                                                                actualizarInsumo(item.id, idx, 'unitaryCost', num)
+                                                                                            }}
                                                                                         />
                                                                                     </td>
                                                                                     <td className="px-3 py-2">
                                                                                         <span className="text-sm font-medium text-gray-800">
-                                                                                            {ins.costoTotal}
+                                                                                            {ins.costoTotal.toLocaleString()}
                                                                                         </span>
                                                                                     </td>
-                                                                                    <td className="px-3 py-2">
-                                                                                        <input
-                                                                                            type="number"
-                                                                                            step="0.01"
-                                                                                            readOnly={!canEditFactor}
-                                                                                            className={`w-20 p-1 border rounded text-right text-sm ${canEditFactor ? 'bg-white focus:ring-1 focus:ring-gray-400' : 'bg-gray-100'}`}
-                                                                                            value={ins.factorInsumo}
-                                                                                            onChange={e => actualizarInsumo(item.id, idx, 'factorInsumo', parseFloat(e.target.value) || 1.3)}
-                                                                                        />
-                                                                                    </td>
-                                                                                    <td className="px-3 py-2">
-                                                                                        <span className="text-sm font-medium text-black-600">
-                                                                                            {ins.ventaUnitaria}
+                                                                                     <td className="px-3 py-2">
+                                                                                        <span className="text-sm font-medium text-gray-800">
+                                                                                            
                                                                                         </span>
-                                                                                    </td>
-                                                                                    <td className="px-3 py-2">
-                                                                                        <span className="text-sm font-bold text-black-700">
-                                                                                            {ins.ventaTotal}
-                                                                                        </span>
-                                                                                    </td>
+                                                                                     </td>
+
+
                                                                                     <td className="px-3 py-2 text-center">
                                                                                         <button
                                                                                             className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
@@ -1816,10 +1830,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                                                 ${item.insumos.reduce((sum, ins) => sum + (parseFloat(ins.costoTotal) || 0), 0).toLocaleString()}
                                                                             </td>
                                                                             <td className="px-3 py-2"></td>
-                                                                            <td className="px-3 py-2"></td>
-                                                                            <td className="px-3 py-2 text-right text-sm text-black-700">
-                                                                                ${item.insumos.reduce((sum, ins) => sum + (parseFloat(ins.ventaTotal) || 0), 0).toLocaleString()}
-                                                                            </td>
+                                                                            
                                                                             <td className="px-3 py-2"></td>
                                                                         </tr>
                                                                     </tfoot>
@@ -1846,17 +1857,6 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                         <span className="text-gray-600">Subtotal venta mano de obra:</span>
                                         <span className="font-semibold">${subtotalVentasManoObra.toLocaleString()}</span>
                                     </div>
-                                    {/* <div className="border-t border-gray-300 pt-2">
-                            <div className="flex justify-between min-w-96">
-                                <span className="text-gray-600">Subtotal costos insumos:</span>
-                                <span className="font-semibold">${subtotalCostosInsumos.toLocaleString()}</span>
-                            </div>
-                            <div className="flex justify-between min-w-96">
-                                <span className="text-gray-600">Subtotal venta insumos:</span>
-                                <span className="font-semibold">${subtotalVentasInsumos.toLocaleString()}</span>
-                            </div>
-                        </div>  */}
-
 
                                 </div>
                             </div>
@@ -1963,11 +1963,11 @@ const NuevaOrdenTrabajo = ({ user }) => {
                             <div className="space-y-2">
                                 <div className="flex justify-between">
                                     <span>Subtotal costos de repuestos:</span>
-                                    <span className="font-medium">${subtotalCostosRepuestos.toLocaleString()}</span>
+                                    <span className="font-medium">${subtotalCostosRepuestos.toLocaleString('es-CO')}</span>
                                 </div>
                                 <div className="flex justify-between">
                                     <span>Subtotal costos de mano de obra:</span>
-                                    <span className="font-medium">${subtotalCostosManoObra.toLocaleString()}</span>
+                                    <span className="font-medium">${subtotalCostosManoObra.toLocaleString('es-CO')}</span>
                                 </div>
 
                                 <div className="flex justify-between border-t border-gray-200 pt-2">
@@ -1976,6 +1976,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                 </div>
                             </div>
                         </div>
+
 
                         <div>
                             <h3 className="font-medium mb-2">Valores de Venta</h3>

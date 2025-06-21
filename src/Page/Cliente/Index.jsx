@@ -77,7 +77,7 @@ const Cliente = () => {
       };
 
       if (modo === 'editar') {
-        await axios.patch(`${API_URL}/${nuevoCliente.idClient}`, payload); 
+        await axios.patch(`${API_URL}/${nuevoCliente.idClient}`, payload);
         toast.success('Cliente editado correctamente');
       } else {
         await axios.post(API_URL, payload);
@@ -103,18 +103,18 @@ const Cliente = () => {
 
 
 
- const handleEditar = (cliente) => {
-  setNuevoCliente({
-    idClient: cliente.idClient, 
-    nombre: cliente.name,
-    document: {
-      number: cliente.document?.documentNumber || '',
-      documentType: cliente.document?.documentType?.idDocumentType || '',
-    }
-  });
-  setModo('editar');
-  setMostrarModal(true);
-};
+  const handleEditar = (cliente) => {
+    setNuevoCliente({
+      idClient: cliente.idClient,
+      nombre: cliente.name,
+      document: {
+        number: cliente.document?.documentNumber || '',
+        documentType: cliente.document?.documentType?.idDocumentType || '',
+      }
+    });
+    setModo('editar');
+    setMostrarModal(true);
+  };
   const handleAbrirAgregar = () => {
     setModo('agregar');
     setNuevoCliente(ClienteVacio);
@@ -150,16 +150,16 @@ const Cliente = () => {
   };
 
   const fetchCliente = async () => {
-  try {
-    const res = await axios.get(API_URL);
-    const clienteArray = Array.isArray(res.data) ? res.data : res.data.data;
-   
-    const activos = clienteArray.filter(c => c.active);
-    setClientes(activos);
-  } catch (error) {
-    console.error('Error al obtener clientes:', error);
-  }
-};
+    try {
+      const res = await axios.get(API_URL);
+      const clienteArray = Array.isArray(res.data) ? res.data : res.data.data;
+
+      const activos = clienteArray.filter(c => c.active);
+      setClientes(activos);
+    } catch (error) {
+      console.error('Error al obtener clientes:', error);
+    }
+  };
   const fetchTiposDocumento = async () => {
     try {
       const res = await axios.get('https://api.trailers.trailersdelcaribe.net/api/document-type');
@@ -236,12 +236,22 @@ const Cliente = () => {
                     {client.name || '—'}
                   </td>
                   <td className="py-3 flex gap-2 justify-end">
-                    <button onClick={() => handleEditar(client)} className="p-1">
+                    <button onClick={() => handleEditar(client)} className="p-1 bg-white rounded-full
+                    shadow-md hover:shadow-xl
+                    transform hover:-translate-y-0.5
+                    transition-all duration-150
+                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300
+                    disabled:opacity-50 disabled:cursor-not-allowed">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                       </svg>
                     </button>
-                    <button  onClick={() => handleEliminar(client.idClient)} className="p-1">
+                    <button onClick={() => handleEliminar(client.idClient)} className="p-1 bg-white rounded-full
+                      shadow-md hover:shadow-xl
+                      transform hover:-translate-y-0.5
+                      transition-all duration-150
+                      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300
+                      disabled:opacity-50 disabled:cursor-not-allowed">
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>

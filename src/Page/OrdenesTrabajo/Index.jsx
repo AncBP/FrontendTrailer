@@ -9,6 +9,7 @@ const OrdenesTrabajo = ({ user }) => {
   const [ordenes, setOrdenes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(false);
   const [totalPages, setTotalPages] = useState(1);
   const navigate = useNavigate();
 
@@ -16,6 +17,7 @@ const OrdenesTrabajo = ({ user }) => {
   useEffect(() => {
     if (!user?.idUser) return;
     const fetchOrdenes = async () => {
+      setLoading(true);
       try {
         const limit = 5;
         const offset = (currentPage - 1) * limit;
@@ -24,7 +26,10 @@ const OrdenesTrabajo = ({ user }) => {
         setOrdenes(resp.data.data);
         setTotalPages(Math.ceil(resp.data.total / limit));
       } catch (err) {
-        console.error('Error cargando órdenes:', err);
+       
+        toast.error('No se pudieron cargar las órdenes');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -38,6 +43,7 @@ const OrdenesTrabajo = ({ user }) => {
     }
   }, [location.state, location.pathname, navigate]);
 
+
   const handleDelete = async (idOrder) => {
     if (!window.confirm('¿Seguro que quieres eliminar esta orden?')) return;
     try {
@@ -46,7 +52,7 @@ const OrdenesTrabajo = ({ user }) => {
       setOrdenes(prev => prev.filter(o => o.idOrder !== idOrder));
       toast.success('Orden eliminada');
     } catch (err) {
-      console.error('Error eliminando orden:', err);
+      
       toast.error('No se pudo eliminar la orden');
     }
   };
@@ -129,97 +135,131 @@ const OrdenesTrabajo = ({ user }) => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Listado de Órdenes de Trabajo</h2>
 
-        <table className="w-full">
-          <thead>
-            <tr className="text-left">
-              <th className="py-2 text-sm font-medium text-gray-600">Código</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Cliente</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Estado</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Tipo de servicio</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Fecha de creación</th>
-              <th className="py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtrados.length > 0 ? (
-              filtrados.map((o) => (
-                <tr key={o.idOrder} className="border-t border-gray-100">
-                  <td className="py-3 text-sm text-yellow-800">{o.orderNumber || '-'}</td>
-                  <td className="py-3 text-sm text-blue-800">{o.client?.name || '-'}</td>
-                  <td className="py-3">
-                    <span className="bg-blue-400 text-white text-sm rounded-full px-4 py-1">
-                      {o.orderStatus?.name || '-'}
-                    </span>
-                  </td>
-                  <td className="py-3 text-sm text-blue-600">
-                    {Array.isArray(o.serviceTypes)
-                      ? o.serviceTypes.map(st => st?.name || '').join(', ')
-                      : '-'}
-                  </td>
-                  <td className="py-3 text-sm text-gray-600">
-                    {o.createdAt
-                      ? new Date(o.createdAt).toLocaleString()
-                      : '-'}
-                  </td>
-                  <td className="py-3 flex gap-2 justify-end">
-
-                    <button onClick={() => navigate(`/ordenes/${o.idOrder}/editar`)} className="p-1">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    {!['Almacenista', 'Auxiliar Administrativo', 'Contratista', 'Mecánico', 'Colaborador'].includes(user?.role?.name) && (
-                      <button onClick={() => handleDescargarPDF(o.idOrder)} className="p-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
-                        </svg>
-                      </button>
-                    )}
-                    {!['Almacenista', 'Auxiliar Administrativo', 'Contratista', 'Mecánico', 'Colaborador'].includes(user?.role?.name) && (
-                      <button onClick={() => handleDelete(o.idOrder)} className="p-1">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="6" className="text-center p-2 text-gray-400">
-                  No hay coincidencias
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-
-        {/* Paginación igual que antes, adaptada a totalPages */}
-        <div className="flex justify-center mt-6 gap-1">
-          <button
-            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-            disabled={currentPage === 1}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-sm"
-          >‹</button>
-
-          {[...Array(totalPages)].map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentPage(i + 1)}
-              className={`w-6 h-6 flex items-center justify-center rounded-md text-sm ${currentPage === i + 1 ? 'bg-gray-800 text-white' : ''
-                }`}
+        {loading ? (
+          <div className="flex justify-center items-center py-16">
+            <svg
+              className="animate-spin h-8 w-8 text-gray-500"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
             >
-              {i + 1}
-            </button>
-          ))}
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+          </div>
+        ) : (
+          <>
+            <table className="w-full">
+              <thead>
+                <tr className="text-left">
+                  <th className="py-2 text-sm font-medium text-gray-600">Código</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Cliente</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Estado</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Tipo de servicio</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Fecha de creación</th>
+                  <th className="py-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtrados.length > 0 ? (
+                  filtrados.map(o => (
+                    <tr key={o.idOrder} className="border-t border-gray-100">
+                      <td className="py-3 text-sm text-yellow-800">{o.orderNumber || '-'}</td>
+                      <td className="py-3 text-sm text-blue-800">{o.client?.name || '-'}</td>
+                      <td className="py-3">
+                        <span className="bg-blue-400 text-white text-sm rounded-full px-4 py-1">
+                          {o.orderStatus?.name || '-'}
+                        </span>
+                      </td>
+                      <td className="py-3 text-sm text-blue-600">
+                        {Array.isArray(o.serviceTypes)
+                          ? o.serviceTypes.map(st => st?.name || '').join(', ')
+                          : '-'}
+                      </td>
+                      <td className="py-3 text-sm text-gray-600">
+                        {o.createdAt
+                          ? new Date(o.createdAt).toLocaleString()
+                          : '-'}
+                      </td>
+                      <td className="py-3 flex gap-2 justify-end">
+                        <button onClick={() => navigate(`/ordenes/${o.idOrder}/editar`)} className="p-1 bg-white rounded-full
+                          shadow-md hover:shadow-xl
+                          transform hover:-translate-y-0.5
+                          transition-all duration-150
+                          focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300
+                          disabled:opacity-50 disabled:cursor-not-allowed">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700 " fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        </button>
+                        {!['Almacenista', 'Auxiliar Administrativo', 'Contratista', 'Mecánico', 'Colaborador']
+                          .includes(user?.role?.name) && (
+                            <>
+                              <button onClick={() => handleDescargarPDF(o.idOrder)} className="p-1 bg-white rounded-full
+                                shadow-md hover:shadow-xl
+                                transform hover:-translate-y-0.5
+                                transition-all duration-150
+                                focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300
+                                disabled:opacity-50 disabled:cursor-not-allowed">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700 " fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                    d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                                </svg>
+                              </button>
+                              <button onClick={() => handleDelete(o.idOrder)} className="p-1 bg-white rounded-full
+                                shadow-md hover:shadow-xl
+                                transform hover:-translate-y-0.5
+                                transition-all duration-150
+                                focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300
+                                disabled:opacity-50 disabled:cursor-not-allowed">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700 " fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              </button>
+                            </>
+                          )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="text-center p-2 text-gray-400">
+                      No hay coincidencias
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
 
-          <button
-            onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
-            disabled={currentPage === totalPages}
-            className="w-6 h-6 flex items-center justify-center rounded-md text-sm"
-          >›</button>
-        </div>
+            {/* Paginación */}
+            <div className="flex justify-center mt-6 gap-1">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+                className="w-6 h-6 flex items-center justify-center rounded-md text-sm"
+              >‹</button>
+
+              {[...Array(totalPages)].map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setCurrentPage(i + 1)}
+                  className={`w-6 h-6 flex items-center justify-center rounded-md text-sm ${currentPage === i + 1 ? 'bg-gray-800 text-white' : ''
+                    }`}
+                >
+                  {i + 1}
+                </button>
+              ))}
+
+              <button
+                onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="w-6 h-6 flex items-center justify-center rounded-md text-sm"
+              >›</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
