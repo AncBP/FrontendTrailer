@@ -546,7 +546,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 ? [{
                     pricingNumber: formulario.numeroCotizacion,
                     pricingDate: crearFechaValida(formulario.fechaCotizacion),
-                    pricedBy: formulario.cotizadoPor,
+                    pricedBy: formulario.cotizadoPor|| null,
                 }]
                 : [],
 

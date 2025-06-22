@@ -102,7 +102,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
         margin: [0,0,0,15]
       },
 
-      // === VEHÍCULO Y CONDUCTOR (sin tabla) ===
+      // === VEHÍCULO Y CONDUCTOR ===
       { text: "INFORMACIÓN DEL VEHÍCULO Y CONDUCTOR", style: "section" },
       {
         columns: [
@@ -153,11 +153,11 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
         {
           table: {
             headerRows: 1,
-            widths: [85, 45, 25, 65, 40, 40, 40, 40],
+            widths: [85, 25, 65, 50, 50, 50, 50],
             body: [
               [
                 { text: 'Material', style: 'tableHeader' },
-                { text: 'Tipo', style: 'tableHeader' },
+                
                 { text: 'Cant.', style: 'tableHeader' },
                 { text: 'Proveedor', style: 'tableHeader' },
                 { text: 'Costo U.', style: 'tableHeader' },
@@ -167,7 +167,6 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
               ],
               ...orden.sparePartMaterials.map(spm => [
                 { text: spm.sparePartMaterial?.name || '—', style: 'tableCell' },
-                { text: spm.sparePartMaterial?.type || '—', style: 'tableCell' },
                 { text: String(spm.cantidad || 0), style: 'tableCell', alignment: 'center' },
                 { text: spm.selectedProvider?.name || '—', style: 'tableCell' },
                 { text: formatCurrency(spm.unitaryCost), style: 'tableCell', alignment: 'right' },
@@ -198,7 +197,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
         }
       ] : []),
 
-      // === MANO DE OBRA E INSUMOS (Diseño mejorado) ===
+      // === MANO DE OBRA E INSUMOS  ===
       ...(isValidArray(orden.manpowers) ? [
         { text: "MANO DE OBRA E INSUMOS", style: "section" },
         ...orden.manpowers.map((mp, index) => {
@@ -214,11 +213,10 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
           // Información principal de mano de obra en formato de bloques
           elements.push({
             table: {
-              widths: [85, 45, 25, 65, 40, 40, 40, 40],
+              widths: [85,25, 65, 50, 50, 50, 50],
               body: [
                 [
                   { text: 'Descripción', style: 'manpowerHeader' },
-                  { text: 'Tipo', style: 'manpowerHeader' },
                   { text: 'Cant.', style: 'manpowerHeader' },
                   { text: 'Contratista', style: 'manpowerHeader' },
                   { text: 'Costo U.', style: 'manpowerHeader' },
@@ -228,7 +226,6 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                 ],
                 [
                   { text: `${mp.manpower?.name || '—'}${mp.useDetail ? '\n' + mp.useDetail : ''}`, style: 'manpowerCell' },
-                  { text: mp.manpower?.type || '—', style: 'manpowerCell' },
                   { text: String(mp.cantidad || 0), style: 'manpowerCell', alignment: 'center' },
                   { text: mp.selectedContractor
                     ? `${mp.selectedContractor.firstName} ${mp.selectedContractor.lastName}`
@@ -260,7 +257,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
             margin: [0, 0, 0, 8]
           });
 
-          // Insumos asociados (si los hay)
+          // Insumos asociados 
           if (isValidArray(mp.supplies)) {
             elements.push({
               text: 'INSUMOS ASOCIADOS',
@@ -270,7 +267,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
 
             elements.push({
               table: {
-                widths: [85, 45, 25, 65, 40, 40, 40, 40],
+                widths: [85, 45, 25, 65, 50, 50],
                 body: [
                   [
                     { text: 'Producto', style: 'suppliesHeader' },
@@ -278,9 +275,8 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                     { text: 'Cant.', style: 'suppliesHeader' },
                     { text: 'Proveedor', style: 'suppliesHeader' },
                     { text: 'Costo U.', style: 'suppliesHeader' },
-                    { text: 'Costo T.', style: 'suppliesHeader' },
-                    { text: 'Venta U.', style: 'suppliesHeader' },
-                    { text: 'Venta T.', style: 'suppliesHeader' }
+                    { text: 'Costo T.', style: 'suppliesHeader' }
+                   
                   ],
                   ...mp.supplies.map(s => [
                     { text: s.supply?.name || '—', style: 'suppliesCell' },
@@ -288,9 +284,8 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                     { text: String(s.cantidad || 0), style: 'suppliesCell', alignment: 'center' },
                     { text: s.selectedProvider?.name || '—', style: 'suppliesCell' },
                     { text: formatCurrency(s.unitaryCost), style: 'suppliesCell', alignment: 'right' },
-                    { text: formatCurrency(s.costoTotal), style: 'suppliesCell', alignment: 'right' },
-                    { text: formatCurrency(s.ventaUnitaria), style: 'suppliesCell', alignment: 'right' },
-                    { text: formatCurrency(s.ventaTotal), style: 'suppliesCell', alignment: 'right' }
+                    { text: formatCurrency(s.costoTotal), style: 'suppliesCell', alignment: 'right' }
+                  
                   ])
                 ]
               },
@@ -314,7 +309,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
               margin: [15, 0, 0, 15]
             });
           } else {
-            elements.push({ text: '', margin: [0, 0, 0, 15] }); // Espaciado si no hay insumos
+            elements.push({ text: '', margin: [0, 0, 0, 15] }); 
           }
 
           return elements;
