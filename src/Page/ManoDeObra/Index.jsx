@@ -98,9 +98,9 @@ const ManoDeObra = () => {
   const handleGuardar = async () => {
     try {
       const payload = {
-        name: nuevoManoDeObra.nombre,
-        type: nuevoManoDeObra.tipoVehiculo,
-        //unitaryCost: parseFloat(nuevoManoDeObra.costoUnitario),
+        name: nuevoManoDeObra.nombre
+        
+
       };
 
       if (modo === 'editar') {
