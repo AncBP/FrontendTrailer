@@ -1427,10 +1427,8 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                 <input
                                                     type="text"
                                                     inputMode="numeric"
-                                                    className={`
-                                                    w-24 p-2 border border-gray-300 rounded text-left
-                                                   bg-white text-gray-900 border-gray-300`}
-
+                                                    className={`w-30 p-2 border border-gray-300 rounded ${canEditFactor ? 'bg-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                                                     disabled={!canEditFactor}
                                                     value={
                                                         repuesto.costoUnitario != null
                                                             ? repuesto.costoUnitario.toLocaleString('es-CO')
