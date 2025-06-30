@@ -30,7 +30,7 @@ const OrdenesTrabajo = ({ user }) => {
           offset,
           search: busqueda.trim() || undefined,
           showActiveOnly,
-          UserId: ['Mecánico', 'Colaborador', 'Contratista']
+          userId: ['Mecánico', 'Colaborador', 'Contratista']
             .includes(user.role.name)
             ? user.idUser
             : undefined,
