@@ -1,63 +1,99 @@
-import axios from 'axios';
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import { toast } from 'react-toastify';
 
+const API_URL = 'https://api.trailers.trailersdelcaribe.net/api/client';
+
 const Cliente = () => {
-
-  const API_URL = 'https://api.trailers.trailersdelcaribe.net/api/client';
-  const [documentTypes, setDocumentTypes] = useState([]);
+  // Estados para datos y UI
   const [clientes, setClientes] = useState([]);
-  const ClienteVacio = {
-    nombre: '',
-    document: {
-      number: '',
-      documentType: ''
-    }
-  };
-
-  const [modo, setModo] = useState('agregar');
-  const [mostrarModal, setMostrarModal] = useState(false);
-  const cerrarModal = () => {
-    setModo('agregar');
-    setMostrarModal(false);
-  };
-
-
-  const [nuevoCliente, setNuevoCliente] = useState({
-    nombre: '',
-    document: {
-      number: '',
-      documentType: '',
-    }
-
-  });
-
+  const [documentTypes, setDocumentTypes] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const [busqueda, setBusqueda] = useState('');
+  const [showActiveOnly, setShowActiveOnly] = useState(true);
+
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 4;
+  const [totalPages, setTotalPages] = useState(1);
+  const ITEMS_PER_PAGE = 6;
 
+  // Modal / formulario
+  const [modo, setModo] = useState('agregar');
+  const [mostrarModal, setMostrarModal] = useState(false);
 
-  // Reset de página al cambiar búsqueda
-  useEffect(() => { setCurrentPage(1); }, [busqueda]);
+  const ClienteVacio = {
+    nombre: '',
+    document: { number: '', documentType: '' }
+  };
+  const [nuevoCliente, setNuevoCliente] = useState(ClienteVacio);
 
-  const filtrados = clientes.filter(u =>
-    u.name?.toLowerCase().includes(busqueda.toLowerCase()) ||
-    u.document?.documentNumber?.toLowerCase().includes(busqueda.toLowerCase())
+  // Carga tipos de documento una sola vez
+  useEffect(() => {
+    axios.get(`https://api.trailers.trailersdelcaribe.net/api/document-type`)
+      .then(res => setDocumentTypes(res.data))
+      .catch(err => console.error(err));
+  }, []);
 
-  );
+  // Cada vez que cambian búsqueda / página / switch activo
+  useEffect(() => {
+    fetchClientes();
+  }, [busqueda, showActiveOnly, currentPage]);
 
-  // Paginación sobre el array filtrado
-  const totalPages = Math.ceil(filtrados.length / itemsPerPage);
-  const indexOfLast = currentPage * itemsPerPage;
-  const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentItems = filtrados.slice(indexOfFirst, indexOfLast);
+  const fetchClientes = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        limit: ITEMS_PER_PAGE,
+        offset: (currentPage - 1) * ITEMS_PER_PAGE,
+        search: busqueda.trim() || undefined,
+        showActiveOnly
+      };
+      const res = await axios.get(API_URL, { params });
+      const { data, total } = res.data;
+      setClientes(data);
+      setTotalPages(Math.ceil(total / ITEMS_PER_PAGE));
+    } catch (error) {
+      console.error('Error al cargar clientes:', error);
+      toast.error('No se pudieron cargar los clientes');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Handlers UI
+  const handleBusquedaChange = e => {
+    setBusqueda(e.target.value);
+    setCurrentPage(1);
+  };
+  const handleToggleActivos = () => {
+    setShowActiveOnly(v => !v);
+    setCurrentPage(1);
+  };
+  const handleAbrirAgregar = () => {
+    setModo('agregar');
+    setNuevoCliente(ClienteVacio);
+    setMostrarModal(true);
+  };
+  const cerrarModal = () => {
+    setMostrarModal(false);
+    setModo('agregar');
+  };
 
-  const handleChange = (e) => {
+  const handleEditar = cliente => {
+    setModo('editar');
+    setNuevoCliente({
+      idClient: cliente.idClient,
+      nombre: cliente.name,
+      document: {
+        number: cliente.document?.documentNumber || '',
+        documentType: cliente.document?.documentType?.idDocumentType || ''
+      }
+    });
+    setMostrarModal(true);
+  };
+  const handleChange = e => {
     const { name, value } = e.target;
-
-    if (name === 'documentType' || name === 'number') {
+    if (name === 'number' || name === 'documentType') {
       setNuevoCliente(prev => ({
         ...prev,
         document: { ...prev.document, [name]: value }
@@ -66,16 +102,13 @@ const Cliente = () => {
       setNuevoCliente(prev => ({ ...prev, [name]: value }));
     }
   };
-
-
   const handleGuardar = async () => {
     try {
       const payload = {
         name: nuevoCliente.nombre,
-        documentType: nuevoCliente.document.documentType,
         documentNumber: nuevoCliente.document.number,
+        documentType: nuevoCliente.document.documentType
       };
-
       if (modo === 'editar') {
         await axios.patch(`${API_URL}/${nuevoCliente.idClient}`, payload);
         toast.success('Cliente editado correctamente');
@@ -83,100 +116,24 @@ const Cliente = () => {
         await axios.post(API_URL, payload);
         toast.success('Cliente creado correctamente');
       }
-      await fetchCliente();
-      setNuevoCliente(ClienteVacio);
-      setModo('agregar');
       setMostrarModal(false);
-
-    } catch (error) {
-      const data = error.response?.data;
-      const msg = data?.message
-        ? Array.isArray(data.message)
-          ? data.message.join(', ')
-          : data.message
-        : 'Error inesperado al guardar';
-      toast.error(`No se pudo guardar: ${msg}`);
-      console.error('Error guardando cliente:', error);
+      fetchClientes();
+    } catch (err) {
+      console.error(err);
+      toast.error('Error guardando cliente');
     }
   };
-
-
-
-
-  const handleEditar = (cliente) => {
-    setNuevoCliente({
-      idClient: cliente.idClient,
-      nombre: cliente.name,
-      document: {
-        number: cliente.document?.documentNumber || '',
-        documentType: cliente.document?.documentType?.idDocumentType || '',
-      }
-    });
-    setModo('editar');
-    setMostrarModal(true);
-  };
-  const handleAbrirAgregar = () => {
-    setModo('agregar');
-    setNuevoCliente(ClienteVacio);
-    setMostrarModal(true);
-  };
-
-
-
-  const handleEliminar = async (id) => {
-
-    const confirmar = window.confirm('¿Seguro que quieres eliminar este cliente?');
-    if (!confirmar) {
-      return;
-    }
-
+  const handleEliminar = async id => {
+    if (!window.confirm('¿Seguro que quieres eliminar este cliente?')) return;
     try {
-
       await axios.delete(`${API_URL}/${id}`);
-
-      await fetchCliente()
-
-      toast.success('cliente eliminado correctamente');
-    } catch (error) {
-
-      const msg = error.response?.data?.message
-        ? Array.isArray(error.response.data.message)
-          ? error.response.data.message.join(', ')
-          : error.response.data.message
-        : 'Error al eliminar cliente';
-      toast.error(msg);
-      console.error('Error al eliminar cliente:', error);
+      toast.success('Cliente eliminado correctamente');
+      fetchClientes();
+    } catch (err) {
+      console.error(err);
+      toast.error('No se pudo eliminar el cliente');
     }
   };
-
-  const fetchCliente = async () => {
-    try {
-      const res = await axios.get(API_URL);
-      const clienteArray = Array.isArray(res.data) ? res.data : res.data.data;
-
-      const activos = clienteArray.filter(c => c.active);
-      setClientes(activos);
-    } catch (error) {
-      console.error('Error al obtener clientes:', error);
-    }
-  };
-  const fetchTiposDocumento = async () => {
-    try {
-      const res = await axios.get('https://api.trailers.trailersdelcaribe.net/api/document-type');
-      setDocumentTypes(res.data);
-    } catch (error) {
-      console.error('Error al cargar tipos de documento:', error);
-    }
-  };
-
-
-
-  useEffect(() => {
-    fetchTiposDocumento();
-    fetchCliente();
-
-  }, []);
-
 
 
   return (
@@ -197,6 +154,17 @@ const Cliente = () => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-sm font-medium text-gray-700">Activos</span>
+          <button
+            onClick={handleToggleActivos}
+            className={`relative w-12 h-6 rounded-full transition-colors duration-300
+              ${showActiveOnly ? 'bg-blue-600' : 'bg-gray-300'}`}
+          >
+            <span className={`absolute left-0 top-0 w-6 h-6 bg-white rounded-full shadow transform transition-transform duration-300
+              ${showActiveOnly ? 'translate-x-6' : 'translate-x-0'}`} />
+          </button>
+        </div>
         <button
           onClick={handleAbrirAgregar}
           className="bg-black text-white px-4 py-2 rounded-md flex items-center gap-2"
@@ -213,75 +181,121 @@ const Cliente = () => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Listado de Clientes</h2>
 
-        <table className="w-full">
-          <thead>
-            <tr className="text-left">
-              <th className="py-2 text-sm font-medium text-gray-600">Tipo</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Identificación</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Nombre</th>
-              <th className="py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {currentItems.length > 0 ? (
-              currentItems.map((client) => (
-                <tr key={client.idClient} className="border-t border-gray-100">
-                  <td className="py-3 text-sm">
-                    {client.document?.documentType?.abbreviation || '—'}
-                  </td>
-                  <td className="py-3 text-sm">
-                    {client.document?.documentNumber || '—'}
-                  </td>
-                  <td className="py-3 text-sm">
-                    {client.name || '—'}
-                  </td>
-                  <td className="py-3 flex gap-2 justify-end">
-                    <button onClick={() => handleEditar(client)} className="p-1 bg-white rounded-full
-                    shadow-md hover:shadow-xl
-                    transform hover:-translate-y-0.5
-                    transition-all duration-150
-                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300
-                    disabled:opacity-50 disabled:cursor-not-allowed">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => handleEliminar(client.idClient)} className="p-1 bg-white rounded-full
-                      shadow-md hover:shadow-xl
-                      transform hover:-translate-y-0.5
-                      transition-all duration-150
-                      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300
-                      disabled:opacity-50 disabled:cursor-not-allowed">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </td>
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <svg className="animate-spin h-8 w-8 text-gray-500" xmlns="http://www.w3.org/2000/svg"
+              fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor"
+                d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+          </div>
+        ) : (
+          <>
+            <table className="w-full">
+              <thead>
+                <tr className="text-left">
+                  <th className="py-2 text-sm font-medium text-gray-600">Tipo</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Identificación</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Nombre</th>
+                  <th className="py-2"></th>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="9" className="text-center p-2 text-gray-400">No hay coincidencias</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {clientes.length > 0 ? clientes.map(c => (
+                  <tr key={c.idClient} className="border-t border-gray-100">
+                    <td className="py-3 text-sm">
+                      {c.document?.documentType?.abbreviation || '—'}
+                    </td>
+                    <td className="py-3 text-sm">
+                      {c.document?.documentNumber || '—'}
+                    </td>
+                    <td className="py-3 text-sm">
+                      {c.name || '—'}
+                    </td>
+                    <td className="py-3 flex gap-2 justify-end">
+                      {(() => {
+                        const esClienteActivo = c.active === true;
 
-        {/* Paginación */}
-        <div className="flex justify-center mt-6 gap-1">
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentPage(i + 1)}
-              className={`
-        w-6 h-6 flex items-center justify-center rounded-md text-sm
-        ${currentPage === i + 1 ? 'bg-gray-800 text-white' : ''}
-      `}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
+                        return (
+                          <>
+                            <button
+                              onClick={esClienteActivo ? () => handleEditar(c) : undefined}
+                              disabled={!esClienteActivo}
+                              className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esClienteActivo
+                                ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 cursor-pointer'
+                                : 'bg-gray-100 cursor-not-allowed opacity-50'
+                                }`}
+                              title={esClienteActivo ? 'Editar usuario' : 'No se puede editar este usuario'}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg"
+                                className="w-4 h-4 text-gray-700" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5
+                               m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                              </svg>
+                            </button>
+                            <button
+                              onClick={esClienteActivo ? () => handleEliminar(c.idClient) : undefined}
+                              disabled={!esClienteActivo}
+                              className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esClienteActivo
+                                ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-red-300 cursor-pointer'
+                                : 'bg-gray-100 cursor-not-allowed opacity-50'
+                                }`}
+                              title={esClienteActivo ? 'Eliminar usuario' : 'No se puede eliminar este usuario'}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg"
+                                className="w-4 h-4 text-gray-700" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862
+                               a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6
+                               m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3
+                               M4 7h16"/>
+                              </svg>
+                            </button>
+                          </>
+                        );
+                      })()}
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan="4" className="text-center p-4 text-gray-400">
+                      {busqueda ? 'No hay coincidencias' : 'No hay clientes para mostrar'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            <div className="flex justify-center items-center mt-6 gap-4">
+              {/* Flecha Anterior */}
+              <button
+                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+                className={`p-2 rounded hover:bg-gray-200 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                ‹
+              </button>
+
+              {/* Indicador de página */}
+              <span className="text-sm text-gray-700">
+                Página {currentPage} de {totalPages}
+              </span>
+
+              {/* Flecha Siguiente */}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className={`p-2 rounded hover:bg-gray-200 ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                ›
+              </button>
+            </div>
+          </>
+        )}
       </div>
       {/* Modal */}
       {mostrarModal && (

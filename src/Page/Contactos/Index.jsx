@@ -18,51 +18,52 @@ const Contactos = () => {
   const [contactos, setContactos] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [nuevoContacto, setNuevoContacto] = useState(ContactoVacio);
+
   const [busqueda, setBusqueda] = useState('');
+  const [showActiveOnly, setShowActiveOnly] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 4;
+  const itemsPerPage = 6;
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
+
   const [modo, setModo] = useState('agregar');
   const [mostrarModal, setMostrarModal] = useState(false);
 
-  const cargarContactos = async () => {
-    try {
-      const res = await axios.get(API_URL);
-      const ContactoArray = Array.isArray(res.data) ? res.data : res.data.data;
-      const activos = ContactoArray.filter(c => c.active);
-      setContactos(activos);
-    } catch (error) {
-      toast.error('Error al cargar contactos');
-      setContactos([]);
-    }
-  };
-
-  const cargarClientes = async () => {
-    try {
-      const res = await axios.get(API_URL_CLIENT);
-      setClientes(Array.isArray(res.data) ? res.data : res.data.data);
-    } catch (e) {
-      toast.error("Error al cargar clientes");
-    }
-  };
-
+  // Carga inicial de clientes (para el select)
   useEffect(() => {
-    cargarContactos();
-    cargarClientes();
+    axios.get(API_URL_CLIENT, { params: { limit: 1000, offset: 0, showActiveOnly: true } })
+      .then(res => {
+        const arr = Array.isArray(res.data.data) ? res.data.data : res.data;
+        setClientes(arr);
+      })
+      .catch(() => toast.error("Error al cargar clientes"));
   }, []);
 
-  useEffect(() => { setCurrentPage(1); }, [busqueda]);
+  // Cada vez que cambian búsqueda / página / switch activo
+  useEffect(() => {
+    cargarContactos();
+  }, [busqueda, showActiveOnly, currentPage]);
 
-  const filtrados = contactos.filter(d =>
-    (d.name || '').toLowerCase().includes(busqueda.toLowerCase()) ||
-    (d.email || '').toLowerCase().includes(busqueda.toLowerCase()) ||
-    (d.phoneNumber || '').toLowerCase().includes(busqueda.toLowerCase()) ||
-    (d.document?.documentNumber || '').toLowerCase().includes(busqueda.toLowerCase())
-  );
-
-  const totalPages = Math.ceil(filtrados.length / itemsPerPage);
-  const indexOfLast = currentPage * itemsPerPage;
-  const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentItems = filtrados.slice(indexOfFirst, indexOfLast);
+  const cargarContactos = async () => {
+    setLoading(true);
+    try {
+      const params = {
+        search: busqueda.trim() || undefined,
+        showActiveOnly,
+        limit: itemsPerPage,
+        offset: (currentPage - 1) * itemsPerPage,
+      };
+      const res = await axios.get(API_URL, { params });
+      const { data, total } = res.data;
+      setContactos(data);
+      setTotalPages(Math.ceil(total / itemsPerPage));
+    } catch (error) {
+      console.error(error);
+      toast.error('Error al cargar contactos');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = e => {
     const { name, value, type, checked } = e.target;
@@ -77,7 +78,6 @@ const Contactos = () => {
     setNuevoContacto(ContactoVacio);
     setMostrarModal(true);
   };
-
   const cerrarModal = () => {
     setModo('agregar');
     setMostrarModal(false);
@@ -85,61 +85,39 @@ const Contactos = () => {
 
   const handleGuardar = async () => {
     try {
-      // Preparar payload según el modo
       const payload = {
         name: nuevoContacto.name,
         email: nuevoContacto.email,
         phoneNumber: nuevoContacto.phoneNumber,
         isPrincipalContact: nuevoContacto.isPrincipalContact,
       };
-
-      // Solo agregar client si tiene valor
-      if (nuevoContacto.client) {
-        payload.client = nuevoContacto.client;
-      }
-
+      if (nuevoContacto.client) payload.client = nuevoContacto.client;
 
       if (modo === 'editar') {
-        // Verificar que tenemos el ID
-        if (!nuevoContacto.idContact) {
-          toast.error('Error: ID de contacto no encontrado');
-          return;
-        }
-
-        const response = await axios.patch(`${API_URL}/${nuevoContacto.idContact}`, payload);
-
+        if (!nuevoContacto.idContact) throw new Error('ID no encontrado');
+        await axios.patch(`${API_URL}/${nuevoContacto.idContact}`, payload);
         toast.success('Contacto actualizado');
       } else {
-        const response = await axios.post(API_URL, payload);
-
+        await axios.post(API_URL, payload);
         toast.success('Contacto creado');
       }
-
-      await cargarContactos();
-      setMostrarModal(false);
-      setNuevoContacto(ContactoVacio);
+      cerrarModal();
+      cargarContactos();
     } catch (err) {
-
-
-      // Mostrar error más específico
-      const errorMessage = err.response?.data?.message || err.response?.data?.error || 'Error al guardar';
-      toast.error(`Error: ${errorMessage}`);
+      const mensaje = err.response?.data?.message || err.message || 'Error al guardar';
+      toast.error(mensaje);
     }
   };
 
   const handleEditar = contacto => {
-
-
     setNuevoContacto({
       idContact: contacto.idContact,
       name: contacto.name || '',
       email: contacto.email || '',
       phoneNumber: contacto.phoneNumber || '',
       isPrincipalContact: contacto.isPrincipalContact || false,
-      // Manejar el client de manera más robusta
-      client: contacto.client?.idClient || contacto.clientId || contacto.client || '',
+      client: contacto.client?.idClient || '',
     });
-
     setModo('editar');
     setMostrarModal(true);
   };
@@ -149,35 +127,55 @@ const Contactos = () => {
     try {
       await axios.delete(`${API_URL}/${id}`);
       toast.success('Contacto eliminado correctamente');
-      await cargarContactos();
-    } catch (error) {
-      console.error('Error al eliminar:', error);
-      const mensaje = error.response?.data?.message || 'Error al eliminar contacto';
+      cargarContactos();
+    } catch (err) {
+      const mensaje = err.response?.data?.message || 'Error al eliminar contacto';
       toast.error(mensaje);
     }
+  };
+
+  const handleBusquedaChange = e => {
+    setBusqueda(e.target.value);
+    setCurrentPage(1);
+  };
+  const handleToggleActivos = () => {
+    setShowActiveOnly(v => !v);
+    setCurrentPage(1);
   };
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <h1 className="text-2xl font-bold text-gray-700 mb-6">Contactos</h1>
 
-      <div className="flex justify-between mb-6">
-        <div className="relative w-72">
-          <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
+      <div className="flex justify-between items-center mb-6 space-x-4">
+
+        <div className="relative flex-1">
           <input
             type="text"
-            className="bg-white border border-gray-200 pl-10 py-3 px-5 text-base rounded-lg focus:outline-none 
-             w-full sm:w-[400px] md:w-[500px] lg:w-[600px]"
             placeholder="Buscar"
-            onChange={(e) => setBusqueda(e.target.value)}
+            className=" bg-white border border-gray-200 w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none"
             value={busqueda}
+            onChange={e => setBusqueda(e.target.value)}
           />
+          <svg className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
         </div>
-        <button onClick={handleAbrirAgregar} className="bg-black text-white px-4 py-2 rounded-md flex items-center gap-2">
+        <div className="flex items-center space-x-2">
+          <span className="text-sm font-medium text-gray-700">Activos</span>
+          <button
+            onClick={handleToggleActivos}
+            className={`relative w-12 h-6 rounded-full transition-colors duration-300
+              ${showActiveOnly ? 'bg-blue-600' : 'bg-gray-300'}`}
+          >
+            <span className={`absolute left-0 top-0 w-6 h-6 bg-white rounded-full shadow transform transition-transform duration-300
+              ${showActiveOnly ? 'translate-x-6' : 'translate-x-0'}`} />
+          </button>
+        </div>
+        <button
+          onClick={handleAbrirAgregar}
+          className="bg-black text-white px-4 py-2 rounded-md flex items-center gap-2"
+        >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
@@ -188,76 +186,113 @@ const Contactos = () => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Listado de Contactos</h2>
 
-        <table className="w-full">
-          <thead>
-            <tr className="text-left">
-              <th className="py-2 text-sm font-medium text-gray-600">Nombre</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Correo</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Número Teléfono</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Cliente</th>
-              <th className="py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {currentItems.length > 0 ? (
-              currentItems.map((contacto) => (
-                <tr key={contacto.idContact} className="border-t border-gray-100">
-                  <td className="py-3 text-sm text-blue-800">{contacto.name}</td>
-                  <td className="py-3 text-sm text-blue-600">{contacto.email}</td>
-                  <td className="py-3 text-sm text-gray-600">{contacto.phoneNumber}</td>
-                  <td className="py-3 text-sm text-gray-600">
-                    {contacto.client?.name || 'Sin cliente'}
-                  </td>
-                  <td className="py-3 flex gap-2 justify-end">
-                    <button onClick={() => handleEditar(contacto)} className="p-1 bg-white rounded-full
-                    shadow-md hover:shadow-xl
-                    transform hover:-translate-y-0.5
-                    transition-all duration-150
-                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300
-                    disabled:opacity-50 disabled:cursor-not-allowed">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => handleEliminar(contacto.idContact)} className="p-1 bg-white rounded-full
-                    shadow-md hover:shadow-xl
-                    transform hover:-translate-y-0.5
-                    transition-all duration-150
-                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300
-                    disabled:opacity-50 disabled:cursor-not-allowed">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-
-                  </td>
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <svg className="animate-spin h-8 w-8 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+          </div>
+        ) : (
+          <>
+            <table className="w-full">
+              <thead>
+                <tr className="text-left">
+                  <th className="py-2 text-sm font-medium text-gray-600">Nombre</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Correo</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Número Teléfono</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Cliente</th>
+                  <th className="py-2"></th>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="5" className="text-center p-2 text-gray-400">
-                  No hay coincidencias
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {contactos.length > 0 ? (
+                  contactos.map(contacto => {
+                    const esContactoActivo = contacto.active === true; // o simplemente !!contacto.active
 
-        {/* Paginación */}
-        <div className="flex justify-center mt-6 gap-1">
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentPage(i + 1)}
-              className={`
-                w-6 h-6 flex items-center justify-center rounded-md text-sm
-                ${currentPage === i + 1 ? 'bg-gray-800 text-white' : ''}
-              `}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
+                    return (
+                      <tr key={contacto.idContact} className="border-t border-gray-100">
+                        <td className="py-3 text-sm">{contacto.name}</td>
+                        <td className="py-3 text-sm">{contacto.email}</td>
+                        <td className="py-3 text-sm">{contacto.phoneNumber}</td>
+                        <td className="py-3 text-sm">{contacto.client?.name || 'Sin cliente'}</td>
+                        <td className="py-3 flex gap-2 justify-end">
+                          <button
+                            onClick={esContactoActivo ? () => handleEditar(contacto) : undefined}
+                            disabled={!esContactoActivo}
+                            className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esContactoActivo
+                                ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 cursor-pointer'
+                                : 'bg-gray-100 cursor-not-allowed opacity-50'
+                              }`}
+                            title={esContactoActivo ? 'Editar contacto' : 'Contacto desactivado'}
+                          >
+                            {/* icono editar */}
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5
+                     m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                            </svg>
+                          </button>
+
+                          <button
+                            onClick={esContactoActivo ? () => handleEliminar(contacto.idContact) : undefined}
+                            disabled={!esContactoActivo}
+                            className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esContactoActivo
+                                ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-red-300 cursor-pointer'
+                                : 'bg-gray-100 cursor-not-allowed opacity-50'
+                              }`}
+                            title={esContactoActivo ? 'Eliminar contacto' : 'Contacto desactivado'}
+                          >
+                            {/* icono eliminar */}
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862
+                     a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6
+                     m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3
+                     M4 7h16"/>
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="5" className="text-center p-2 text-gray-400">
+                      No hay coincidencias
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+
+            </table>
+
+            <div className="flex justify-center items-center mt-6 gap-4">
+              {/* Flecha Anterior */}
+              <button
+                onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+                className={`p-2 rounded hover:bg-gray-200 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                ‹
+              </button>
+
+              {/* Indicador de página */}
+              <span className="text-sm text-gray-700">
+                Página {currentPage} de {totalPages}
+              </span>
+
+              {/* Flecha Siguiente */}
+              <button
+                onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className={`p-2 rounded hover:bg-gray-200 ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                ›
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Modal */}

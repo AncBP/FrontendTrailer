@@ -10,34 +10,56 @@ export default function Login({ onLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+const fetchAllUsers = async () => {
+  const allUsers = [];
+  let offset = 0;
+  const limit = 10; 
+  let hasMore = true;
 
-    try {
-      
-      const res = await axios.get(API_URL);
-      const users = Array.isArray(res.data) ? res.data : res.data.data;
-
-    
-      const found = users.find((u) => u.email === email);
-      if (!found) {
-        alert('No existe ningún usuario con ese correo.');
-        return;
-      }
-
-      if (found.password !== password) {
-        alert('La contraseña es incorrecta.');
-        return;
-      }
+  try {
+    while (hasMore) {
+      const res = await axios.get(`${API_URL}?limit=${limit}&offset=${offset}`);
+      const users = res.data.data;
+      allUsers.push(...users);
 
       
-      onLogin(found);
-      navigate('/dashboard');
-    } catch (err) {
-      console.error(err);
-      alert('Error al conectar con el servidor.');
+      if (users.length < limit) {
+        hasMore = false;
+      } else {
+        offset += limit;
+      }
     }
-  };
+  } catch (error) {
+    console.error('Error al obtener usuarios:', error);
+    throw error;
+  }
+
+  return allUsers;
+};
+const handleSubmit = async (e) => {
+  e.preventDefault();
+
+  try {
+    const users = await fetchAllUsers();
+    const found = users.find((u) => u.email === email && u.active === true);
+
+    if (!found) {
+      alert('No existe un usuario activo con ese correo.');
+      return;
+    }
+
+    if (found.password !== password) {
+      alert('La contraseña es incorrecta.');
+      return;
+    }
+
+    onLogin(found);
+    navigate('/dashboard');
+  } catch (err) {
+    console.error(err);
+    alert('Error al conectar con el servidor.');
+  }
+};
 
   return (
         <div className="flex items-center justify-center min-h-screen bg-gray-100">

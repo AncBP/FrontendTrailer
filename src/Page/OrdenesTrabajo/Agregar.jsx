@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import { FaChevronUp, FaChevronDown, FaTimes } from 'react-icons/fa';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -102,12 +102,171 @@ const NuevaOrdenTrabajo = ({ user }) => {
     const [repuestos, setRepuestos] = useState([]);
     const [manoDeObra, setManoDeObra] = useState([]);
     const [contactos, setContactos] = useState([]);
+    const [allContacts, setAllContacts] = useState([]);
     const [contactosData, setContactosData] = useState([]);
     const [proveedores, setProveedores] = useState([]);
     const [contactosDisponibles, setContactosDisponibles] = useState([]);
     const [supplyOptions, setSupplyOptions] = useState([])
     const [contactosSeleccionados, setContactosSeleccionados] = useState([]);
 
+    const [userOffset, setUserOffset] = useState(0);
+    const [hasMoreUsers, setHasMoreUsers] = useState(true);
+    const LIMIT_USERS = 50;
+
+    const [clientOffset, setClientOffset] = useState(0);
+    const [hasMoreClients, setHasMoreClients] = useState(true);
+    const LIMIT_CLIENTS = 50;
+
+    const [driverOffset, setDriverOffset] = useState(0);
+    const [hasMoreDrivers, setHasMoreDrivers] = useState(true);
+    const LIMIT_DRIVERS = 50;
+
+    const [vehiculeOffset, setVehiculeOffset] = useState(0);
+    const [hasMoreVehicules, setHasMoreVehicules] = useState(true);
+    const LIMIT_VEHICULES = 50;
+
+    const [opcOffset, setOpcOffset] = useState(0);
+    const [hasMoreOpc, setHasMoreOpc] = useState(true);
+    const LIMIT_OPC = 50;
+
+    const PAG_LIMIT = 50;
+
+
+
+    const fetchMoreOpcRepuestos = async () => {
+        if (!hasMoreOpc) return
+
+        const resp = await axios.get(`${API_URL}/spare-part-material`, {
+            params: { filter: 'Activo', limit: LIMIT_OPC, offset: opcOffset }
+        })
+
+        const nuevos = resp.data?.data || []
+        const total = resp.data?.total || nuevos.length
+
+        setOpcRepuestos(prev => {
+
+            const combinado = [...prev, ...nuevos]
+            const unico = combinado.filter((m, i, a) =>
+                a.findIndex(x => x.idSparePartMaterial === m.idSparePartMaterial) === i
+            )
+            if (unico.length >= total) setHasMoreOpc(false)
+            return unico
+        })
+
+        setOpcOffset(o => o + LIMIT_OPC)
+    }
+
+
+    const fetchMoreVehicules = async () => {
+        if (!hasMoreVehicules) return;
+
+        const resp = await axios.get(`${API_URL}/vehicule`, {
+            params: { limit: LIMIT_VEHICULES, offset: vehiculeOffset, filter: 'Activo' }
+        });
+        const nuevos = resp.data?.data || [];
+        const total = resp.data?.total || nuevos.length;
+
+        setVehiculeOptions(prev => {
+
+            const combinado = [...prev, ...nuevos];
+
+            const unique = combinado.filter((v, i, arr) =>
+                arr.findIndex(x => x.idVehicule === v.idVehicule) === i
+            );
+
+            if (unique.length >= total) setHasMoreVehicules(false);
+            return unique;
+        });
+
+        setVehiculeOffset(o => o + LIMIT_VEHICULES);
+    };
+
+
+    const fetchMoreDrivers = useCallback(async () => {
+        if (!hasMoreDrivers) return;
+        try {
+            const resp = await axios.get(`${API_URL}/driver`, {
+                params: {
+                    limit: LIMIT_DRIVERS,
+                    offset: driverOffset,
+                    filter: 'Activo'
+                }
+            });
+            const nuevos = resp.data?.data || resp.data || [];
+            const total = resp.data?.total || nuevos.length;
+
+            setDriverOptions(prev => {
+                // Deduplica
+                const seen = new Set(prev.map(d => d.idDriver));
+                const unidos = [...prev, ...nuevos.filter(d => !seen.has(d.idDriver))];
+                if (unidos.length >= total) setHasMoreDrivers(false);
+                return unidos;
+            });
+
+            setDriverOffset(off => off + LIMIT_DRIVERS);
+        } catch (e) {
+            console.error('Error cargando más conductores:', e);
+        }
+    }, [driverOffset, hasMoreDrivers]);
+
+
+    const fetchMoreUsers = async () => {
+        if (!hasMoreUsers) return;
+
+        const resp = await axios.get(`${API_URL}/user`, {
+            params: { limit: LIMIT_USERS, offset: userOffset }
+        });
+
+        const nuevos = resp.data?.data || [];
+        const total = resp.data?.total || nuevos.length;
+
+        setUserOptions(prev => {
+            const ids = new Set();
+            const combinados = [...prev, ...nuevos];
+            const unicos = combinados.filter(u => {
+                if (ids.has(u.idUser)) return false;
+                ids.add(u.idUser);
+                return true;
+            });
+
+            // 👇 Aquí sí comparas con la longitud real combinada
+            if (unicos.length >= total) {
+                setHasMoreUsers(false);
+            }
+
+            return unicos;
+        });
+
+        setUserOffset(prev => prev + LIMIT_USERS); // El offset siempre avanza
+    };
+
+
+    const fetchMoreClients = async () => {
+        if (!hasMoreClients) return;
+
+        const resp = await axios.get(`${API_URL}/client`, {
+            params: { limit: LIMIT_CLIENTS, offset: clientOffset }
+        });
+
+        const nuevos = resp.data?.data || [];
+        const total = resp.data?.total || nuevos.length;
+
+        setClientOptions(prev => [...prev, ...nuevos]);
+
+        if (clientOptions.length + nuevos.length >= total) {
+            setHasMoreClients(false);
+        } else {
+            setClientOffset(prev => prev + LIMIT_CLIENTS);
+        }
+    };
+
+
+    useEffect(() => {
+
+        fetchMoreDrivers();
+        fetchMoreVehicules();
+        fetchMoreOpcRepuestos();
+    }, []);
 
     function toDisplayDate(fechaISO) {
         if (!fechaISO) return '';
@@ -181,61 +340,86 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 // Cargar todas las opciones en paralelo
                 const requests = [
                     axios.get(`${API_URL}/order-status`).catch(() => ({ data: [] })),
-                    axios.get(`${API_URL}/spare-part-material`, { params: { filter: 'Activo' } }).catch(() => ({ data: [] })),
+                    axios.get(`${API_URL}/spare-part-material`, { params: { filter: 'Activo', limit: PAG_LIMIT, offset: 0 } }),
                     axios.get(`${API_URL}/service-type`).catch(() => ({ data: [] })),
-                    axios.get(`${API_URL}/vehicule-type`).catch(() => ({ data: [] })),
-                    axios.get(`${API_URL}/user`).catch(() => ({ data: { data: [] } })),
-                    axios.get(`${API_URL}/driver`).catch(() => ({ data: [] })),
-                    axios.get(`${API_URL}/provider`).catch(() => ({ data: [] })),
-                    axios.get(`${API_URL}/client`).catch(() => ({ data: { data: [] } })),
-                    axios.get(`${API_URL}/manpower`, { params: { filter: 'Activo' } }).catch(() => ({ data: [] })),
-                    axios.get(`${API_URL}/vehicule`).catch(() => ({ data: { data: [] } })),
-                    axios.get(`${API_URL}/contacts`).catch(() => ({ data: [] })),
-                    axios.get(`${API_URL}/supply`, { params: { filter: 'Activo' } })
+                    axios.get(`${API_URL}/vehicule-type`, { params: { limit: PAG_LIMIT, offset: 0 } }),
+                    axios.get(`${API_URL}/user`, { params: { limit: PAG_LIMIT, offset: 0, filter: 'Activo' } }),
+                    /* axios.get(`${API_URL}/driver`, { … }) */
+                    axios.get(`${API_URL}/provider`, { params: { limit: PAG_LIMIT, offset: 0, filter: 'Activo' } }),
+                    axios.get(`${API_URL}/client`, { params: { limit: PAG_LIMIT, offset: 0, filter: 'Activo' } }),
+                    axios.get(`${API_URL}/manpower`, { params: { filter: 'Activo', limit: PAG_LIMIT, offset: 0 } }),
+                    axios.get(`${API_URL}/vehicule`, { params: { limit: PAG_LIMIT, offset: 0, filter: 'Activo' } }),
+                    axios.get(`${API_URL}/contacts`, { params: { limit: PAG_LIMIT, offset: 0, filter: 'Activo' } }),
+                    axios.get(`${API_URL}/supply`, { params: { filter: 'Activo', limit: PAG_LIMIT, offset: 0 } }),
                 ];
 
                 const [
-                    statusResp,         // order-status
-                    repuestosResp,      // spare-part-material
-                    serviceResp,        // service-type
-                    vehicleTypeResp,    // vehicule-type
-                    userResp,           // user
-                    driverResp,         // driver
-                    proveedoresResp,    // provider
-                    clientResp,         // client
-                    manpowerResp,       // manpower
-                    vehiculeResp,       // vehicule
-                    contactsResp,      // contacts
-                    supplyResp         // supply
-
+                    statusResp,
+                    repuestosResp,
+                    serviceResp,
+                    vehicleTypeResp,
+                    userResp,
+                    /* driverResp, */
+                    proveedoresResp,
+                    clientResp,
+                    manpowerResp,
+                    vehiculeResp,
+                    contactsResp,
+                    supplyResp
                 ] = await Promise.all(requests);
 
+                // —— Procesar contactos —— 
+                const contactosArray = Array.isArray(contactsResp.data.data)
+                    ? contactsResp.data.data
+                    : Array.isArray(contactsResp.data)
+                        ? contactsResp.data
+                        : [];
+
+                setAllContacts(contactosArray);
+                setContactosData(contactosArray);
+
+                // —— Proveedores —— 
                 const rawProv = proveedoresResp.data;
                 const listaProveedores = Array.isArray(rawProv)
                     ? rawProv
                     : Array.isArray(rawProv.data)
                         ? rawProv.data
                         : [];
-
                 setProveedores(listaProveedores);
 
+                // —— Insumos —— 
+                const rawSupply = supplyResp.data;
+                const listaSupply = Array.isArray(rawSupply)
+                    ? rawSupply
+                    : Array.isArray(rawSupply.data)
+                        ? rawSupply.data
+                        : [];
+                setSupplyOptions(listaSupply);
+
+                // —— Resto de estados —— 
                 setStatusOptions(statusResp.data || []);
-                setOpcRepuestos(Array.isArray(repuestosResp.data) ? repuestosResp.data : (repuestosResp.data?.data || []));
+                setOpcRepuestos(
+                    Array.isArray(repuestosResp.data)
+                        ? repuestosResp.data
+                        : repuestosResp.data?.data || []
+                );
                 setServiceTypeOptions(serviceResp.data || []);
                 setVehicleTypeOptions(vehicleTypeResp.data || []);
-
                 setUserOptions(userResp.data?.data || userResp.data || []);
-                setDriverOptions(driverResp.data || []);
                 setClientOptions(clientResp.data?.data || clientResp.data || []);
-                setManpowers(Array.isArray(manpowerResp.data) ? manpowerResp.data : (manpowerResp.data?.data || []));
-                setVehiculeOptions(vehiculeResp.data?.data || vehiculeResp.data || []);
-                setContactosData(contactsResp.data || []);
-                setSupplyOptions(supplyResp.data || []);
+                const rawManpowers = Array.isArray(manpowerResp.data)
+                    ? manpowerResp.data
+                    : Array.isArray(manpowerResp.data?.data)
+                        ? manpowerResp.data.data
+                        : [];
+                const activeManpowers = rawManpowers.filter(mp => mp.active === true);
+                setManpowers(activeManpowers);
+                setVehiculeOptions(
+                    vehiculeResp.data?.data || vehiculeResp.data || []
+                );
 
                 setOpcionesCargadas(true);
-
             } catch (error) {
-
                 toast.error("Error al cargar las opciones iniciales");
                 setOpcionesCargadas(true);
             }
@@ -243,6 +427,8 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
         cargarDatosIniciales();
     }, []);
+
+
 
 
     useEffect(() => {
@@ -275,6 +461,40 @@ const NuevaOrdenTrabajo = ({ user }) => {
                         ? [orden.assignTo.idUser]
                         : [];
 
+
+
+                const usuariosFaltantes = asignadosBackend.filter(
+                    id => !userOptions.some(u => u.idUser === id)
+                );
+
+                for (const id of usuariosFaltantes) {
+                    const respUser = await axios.get(`${API_URL}/user/${id}`);
+                    setUserOptions(prev => [...prev, respUser.data]);
+                }
+
+                const pricedById = orden.pricings?.[0]?.pricedBy?.idUser;
+                const billedById = orden.billings?.[0]?.billedBy?.idUser;
+
+                // 1) Detectar IDs faltantes en userOptions
+                const faltantes = [];
+                if (pricedById && !userOptions.some(u => u.idUser === pricedById)) {
+                    faltantes.push(pricedById);
+                }
+                if (billedById && !userOptions.some(u => u.idUser === billedById)) {
+                    faltantes.push(billedById);
+                }
+
+                // 2) Traer esos usuarios antes de setear el formulario
+                if (faltantes.length) {
+                    const respuestas = await Promise.all(
+                        faltantes.map(uid => axios.get(`${API_URL}/user/${uid}`))
+                    );
+                    setUserOptions(prev => [
+                        ...prev,
+                        ...respuestas.map(r => r.data.data || r.data)
+                    ]);
+                }
+
                 setFormulario(prev => ({
                     ...prev,
                     numeroOrden: orden.orderNumber || '',
@@ -293,6 +513,14 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     kmSalida: orden.kilometers != null ? orden.kilometers.toString() : '',
                     conductor: orden.assignedDriver?.idDriver || '',
                     nombreSolicitud: orden.contacts?.find(c => c.isPrincipalContact)?.name || '',
+                    numeroCotizacion: orden.pricings?.[0]?.pricingNumber || '',
+                    fechaCotizacion: toInputDate(orden.pricings?.[0]?.pricingDate),
+                    cotizadoPor: pricedById || '',
+                    // Facturación
+                    numeroFacturacion: orden.billings?.[0]?.billingNumber || '',
+                    fechaFacturacion: toInputDate(orden.billings?.[0]?.billingDate),
+                    facturadoPor: billedById || '',
+                    numeroActaEntrega: orden.billings?.[0]?.actNumber || '',
                     totals: {
                         subtotalCostosRepuestos: orden.total?.subtotalCostosRepuestos || 0,
                         subtotalVentasRepuestos: orden.total?.subtotalVentasRepuestos || 0,
@@ -359,26 +587,26 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     setManoDeObra(manoObraData);
                 }
 
-                if (Array.isArray(orden.pricings) && orden.pricings.length) {
-                    const p = orden.pricings[0];
-                    setFormulario(f => ({
-                        ...f,
-                        numeroCotizacion: p.pricingNumber || '',
-                        fechaCotizacion: toInputDate(p.pricingDate),
-                        cotizadoPor: p.pricedBy?.idUser || ''
-                    }));
-                }
-
-                if (Array.isArray(orden.billings) && orden.billings.length) {
-                    const b = orden.billings[0];
-                    setFormulario(f => ({
-                        ...f,
-                        numeroFacturacion: b.billingNumber || '',
-                        fechaFacturacion: toInputDate(b.billingDate),
-                        facturadoPor: b.billedBy?.idUser || '',
-                        numeroActaEntrega: b.actNumber || ''
-                    }));
-                }
+                /*  if (Array.isArray(orden.pricings) && orden.pricings.length) {
+                      const p = orden.pricings[0];
+                      setFormulario(f => ({
+                          ...f,
+                          numeroCotizacion: p.pricingNumber || '',
+                          fechaCotizacion: toInputDate(p.pricingDate),
+                          cotizadoPor: p.pricedBy?.idUser || ''
+                      }));
+                  }
+  
+                  if (Array.isArray(orden.billings) && orden.billings.length) {
+                      const b = orden.billings[0];
+                      setFormulario(f => ({
+                          ...f,
+                          numeroFacturacion: b.billingNumber || '',
+                          fechaFacturacion: toInputDate(b.billingDate),
+                          facturadoPor: b.billedBy?.idUser || '',
+                          numeroActaEntrega: b.actNumber || ''
+                      }));
+                  }*/
                 // Contactos adicionales
                 if (orden.client?.idClient) {
                     procesarContactosCliente(orden.client.idClient);
@@ -443,7 +671,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
     };
 
     const procesarContactosCliente = (clienteId) => {
-        const contactosCliente = contactosData.filter(contacto =>
+        const contactosCliente = allContacts.filter(contacto =>
             contacto.client?.idClient === clienteId && contacto.active
         );
 
@@ -546,7 +774,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 ? [{
                     pricingNumber: formulario.numeroCotizacion,
                     pricingDate: crearFechaValida(formulario.fechaCotizacion),
-                    pricedBy: formulario.cotizadoPor|| null,
+                    pricedBy: formulario.cotizadoPor || null,
                 }]
                 : [],
 
@@ -561,7 +789,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
             sparePartMaterials: repuestos.map(r => ({
                 sparePartMaterial: r.idSparePartMaterial,
-               selectedProvider: r.proveedor || null,
+                selectedProvider: r.proveedor || null,
                 unitaryCost: Number(r.costoUnitario),
                 cantidad: Number(r.cantidad),
                 costoTotal: Number(r.costoTotal),
@@ -913,11 +1141,89 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
 
     const roleOptions = userOptions
-        .filter(u => ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name))
+        .filter(u =>
+            ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name) &&
+            u.active === true &&
+            u.userStatus?.name === 'Activo'
+        )
         .map(u => ({
             value: u.idUser,
             label: `${u.firstName} ${u.lastName}`
-        }))
+        }));
+
+
+    const uniqueRoleOptions = roleOptions.filter((opt, i, arr) =>
+        arr.findIndex(o => o.value === opt.value) === i
+    );
+
+    const visiblesRepuestos = opcRepuestos.filter(mat => mat.active)
+
+    const uniqueUserOptions = React.useMemo(() => {
+        return userOptions
+
+            .filter(u => u.active && u.userStatus?.name === 'Activo')
+
+            .reduce((acc, u) => {
+                if (!acc.some(x => x.idUser === u.idUser)) acc.push(u);
+                return acc;
+            }, []);
+    }, [userOptions]);
+
+    const observerUsers = useRef();
+    const lastUserRef = useCallback(node => {
+        if (!hasMoreUsers) return;
+        if (observerUsers.current) observerUsers.current.disconnect();
+        observerUsers.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) {
+                fetchMoreUsers();
+            }
+        });
+        if (node) observerUsers.current.observe(node);
+    }, [hasMoreUsers, userOffset]);
+
+    const observerClients = useRef();
+    const lastClientRef = useCallback(node => {
+        if (!hasMoreClients) return;
+        if (observerClients.current) observerClients.current.disconnect();
+        observerClients.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) {
+                fetchMoreClients();
+            }
+        });
+        if (node) observerClients.current.observe(node);
+    }, [hasMoreClients, clientOffset]);
+
+
+    const observerDrivers = useRef();
+    const lastDriverRef = useCallback(node => {
+        if (!hasMoreDrivers) return;
+        if (observerDrivers.current) observerDrivers.current.disconnect();
+        observerDrivers.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) fetchMoreDrivers();
+        });
+        if (node) observerDrivers.current.observe(node);
+    }, [hasMoreDrivers, fetchMoreDrivers]);
+
+    const observerVehicules = useRef();
+    const lastVehiculeRef = useCallback(node => {
+        if (!hasMoreVehicules) return;
+        if (observerVehicules.current) observerVehicules.current.disconnect();
+        observerVehicules.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) fetchMoreVehicules();
+        });
+        if (node) observerVehicules.current.observe(node);
+    }, [hasMoreVehicules, vehiculeOffset]);
+
+    const observerOpc = useRef();
+    const lastOpcRef = useCallback(node => {
+        if (!hasMoreOpc) return;
+        if (observerOpc.current) observerOpc.current.disconnect();
+        observerOpc.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting) fetchMoreOpcRepuestos();
+        });
+        if (node) observerOpc.current.observe(node);
+    }, [hasMoreOpc, opcOffset]);
+
 
     return (
         <div className="max-w-7xl w-full mx-auto bg-gray-50 p-6">
@@ -962,7 +1268,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                     <div className="relative">
                                         <Listbox.Button className="w-full border border-gray-300 rounded-md p-2 flex justify-between items-center bg-white">
                                             <span className="truncate">
-                                                {roleOptions
+                                                {uniqueRoleOptions
                                                     .filter(o => formulario.Asignado.includes(o.value))
                                                     .map(o => o.label)
                                                     .join(', ') || 'Selecciona colaboradores'}
@@ -971,34 +1277,36 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                         </Listbox.Button>
 
                                         <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none">
-                                            {roleOptions.map(opt => (
-                                                <Listbox.Option
-                                                    key={opt.value}
-                                                    value={opt.value}
-                                                    className={({ active }) =>
-                                                        `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''
-                                                        }`
-                                                    }
-                                                >
-                                                    {({ selected }) => (
-                                                        <>
-                                                            <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>
-                                                                {opt.label}
-                                                            </span>
-                                                            {selected && (
-                                                                <CheckIcon
-                                                                    className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600"
-                                                                />
-                                                            )}
-                                                        </>
-                                                    )}
-                                                </Listbox.Option>
-                                            ))}
+                                            {uniqueRoleOptions.map((opt, idx) => {
+                                                const isLast = idx === uniqueRoleOptions.length - 1;
+                                                return (
+                                                    <Listbox.Option
+                                                        key={opt.value}               // ahora único
+                                                        value={opt.value}
+                                                        ref={isLast ? lastUserRef : null}
+                                                        className={({ active }) =>
+                                                            `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''
+                                                            }`
+                                                        }
+                                                    >
+                                                        {({ selected }) => (
+                                                            <>
+                                                                <span
+                                                                    className={`block truncate ${selected ? 'font-semibold' : 'font-normal'
+                                                                        }`}
+                                                                >
+                                                                    {opt.label}
+                                                                </span>
+                                                                {selected && (
+                                                                    <CheckIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </Listbox.Option>
+                                                );
+                                            })}
                                         </Listbox.Options>
                                     </div>
-                                    <p className="mt-1 text-xs text-gray-500">
-                                        Seleccionados: {formulario.Asignado.length}
-                                    </p>
                                 </Listbox>
                             </div>
                         </div>
@@ -1132,26 +1440,55 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     <div className="bg-white p-4 border-t border-gray-200">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Cliente *
-                                </label>
-                                <select
-                                    name="cliente"
+                                <Listbox
                                     value={formulario.cliente}
-                                    onChange={handleCambioCliente}
-                                    required
-                                    className="w-full max-w-xs p-2 border border-gray-300 rounded"
-
+                                    onChange={val => {
+                                        setFormulario(prev => ({ ...prev, cliente: val }));
+                                        procesarContactosCliente(val);
+                                    }}
                                 >
-                                    <option value="">Selecciona el cliente</option>
-                                    {clientOptions
-                                        .filter(cl => cl.active)
-                                        .map(cl => (
-                                            <option key={cl.idClient} value={cl.idClient}>
-                                                {cl.name}
-                                            </option>
-                                        ))}
-                                </select>
+                                    <Listbox.Label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Cliente *
+                                    </Listbox.Label>
+                                    <div className="relative">
+                                        <Listbox.Button className="w-full border border-gray-300 rounded-md p-2 flex justify-between items-center bg-white">
+                                            <span className="truncate">
+                                                {clientOptions.find(c => c.idClient === formulario.cliente)?.name || 'Selecciona cliente'}
+                                            </span>
+                                            <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
+                                        </Listbox.Button>
+
+                                        <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none">
+                                            {clientOptions
+                                                .filter(c => c.active)
+                                                .map((client, idx) => {
+                                                    const isLast = idx === clientOptions.length - 1;
+                                                    return (
+                                                        <Listbox.Option
+                                                            key={client.idClient}
+                                                            value={client.idClient}
+                                                            ref={isLast ? lastClientRef : null}
+                                                            className={({ active }) =>
+                                                                `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''}`
+                                                            }
+                                                        >
+                                                            {({ selected }) => (
+                                                                <>
+                                                                    <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>
+                                                                        {client.name}
+                                                                    </span>
+                                                                    {selected && (
+                                                                        <CheckIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
+                                                                    )}
+                                                                </>
+                                                            )}
+                                                        </Listbox.Option>
+                                                    );
+                                                })}
+                                        </Listbox.Options>
+                                    </div>
+                                </Listbox>
+
                             </div>
 
                             <div>
@@ -1222,7 +1559,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
             {/* informacion del vehiculo  */}
 
-            <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+            <div className="mb-4 border border-gray-200 rounded-lg overflow-visible">
                 <div
                     className="bg-white p-4 flex justify-between items-center cursor-pointer"
                     onClick={() => {
@@ -1237,20 +1574,50 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     <div className="bg-white p-4 border-t border-gray-200">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Placa cabezote</label>
-                                <select
-                                    name="vehicule"
+                                <Listbox
                                     value={formulario.vehicule}
-                                    onChange={handleVehiculeSelect}
-                                    className="w-full p-2 border border-gray-300 rounded"
+                                    onChange={val => handleVehiculeSelect({ target: { name: 'vehicule', value: val } })}
                                 >
-                                    <option value="">Selecciona una placa</option>
-                                    {vehiculeOptions.map(v => (
-                                        <option key={v.idVehicule} value={v.idVehicule}>
-                                            {v.placaCabezote}
-                                        </option>
-                                    ))}
-                                </select>
+                                    <Listbox.Label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Placa cabezote
+                                    </Listbox.Label>
+                                    <div className="relative">
+                                        <Listbox.Button className="w-full p-2 border border-gray-300 rounded bg-white flex justify-between items-center">
+                                            <span className="truncate">
+                                                {vehiculeOptions.find(v => v.idVehicule === formulario.vehicule)
+                                                    ? vehiculeOptions.find(v => v.idVehicule === formulario.vehicule).placaCabezote
+                                                    : 'Selecciona una placa'}
+                                            </span>
+                                            <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
+                                        </Listbox.Button>
+                                        <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 overflow-auto">
+                                            {vehiculeOptions.map((v, idx) => {
+                                                const isLast = idx === vehiculeOptions.length - 1;
+                                                return (
+                                                    <Listbox.Option
+                                                        key={v.idVehicule}
+                                                        value={v.idVehicule}
+                                                        ref={isLast ? lastVehiculeRef : null}
+                                                        className={({ active }) =>
+                                                            `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''}`
+                                                        }
+                                                    >
+                                                        {({ selected }) => (
+                                                            <>
+                                                                <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>
+                                                                    {v.placaCabezote}
+                                                                </span>
+                                                                {selected && (
+                                                                    <CheckIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </Listbox.Option>
+                                                );
+                                            })}
+                                        </Listbox.Options>
+                                    </div>
+                                </Listbox>
 
 
                             </div>
@@ -1291,21 +1658,65 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Conductor</label>
-                                <select
-                                    name="conductor"
+                                <Listbox
                                     value={formulario.conductor}
-                                    onChange={handleCambioFormulario}
-                                    required
-                                    className="w-full p-2 border border-gray-300 rounded"
+                                    onChange={val => setFormulario(f => ({ ...f, conductor: val }))}
                                 >
-                                    <option value="">Selecciona conductor</option>
-                                    {driverOptions.map(d => (
-                                        <option key={d.idDriver} value={d.idDriver}>
-                                            {d.firstName} {d.lastName}
-                                        </option>
-                                    ))}
-                                </select>
+                                    <Listbox.Label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Conductor *
+                                    </Listbox.Label>
+                                    <div className="relative">
+                                        <Listbox.Button className="w-full border border-gray-300 rounded-md p-2 flex justify-between items-center bg-white">
+                                            <span className="truncate">
+                                                {driverOptions.find(d => d.idDriver === formulario.conductor)
+                                                    ? `${driverOptions.find(d => d.idDriver === formulario.conductor).firstName} ${driverOptions.find(d => d.idDriver === formulario.conductor).lastName}`
+                                                    : 'Selecciona conductor'}
+                                            </span>
+                                            <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
+                                        </Listbox.Button>
+
+                                        <Listbox.Options
+                                            className="absolute z-10 mt-1 w-full max-h-60 overflow-auto bg-white shadow-lg rounded-md py-1 text-base focus:outline-none"
+
+                                            onScroll={e => {
+                                                const tgt = e.target;
+                                                if (tgt.scrollTop + tgt.clientHeight >= tgt.scrollHeight - 5) {
+                                                    fetchMoreDrivers();
+                                                }
+                                            }}
+                                        >
+                                            {driverOptions.map((d, idx) => {
+                                                const isLast = idx === driverOptions.length - 1;
+                                                return (
+                                                    <Listbox.Option
+                                                        key={d.idDriver}
+                                                        value={d.idDriver}
+                                                        ref={isLast ? lastDriverRef : null}
+                                                        className={({ active }) =>
+                                                            `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''
+                                                            }`
+                                                        }
+                                                    >
+                                                        {({ selected }) => (
+                                                            <>
+                                                                <span
+                                                                    className={`block truncate ${selected ? 'font-semibold' : 'font-normal'
+                                                                        }`}
+                                                                >
+                                                                    {d.firstName} {d.lastName}
+                                                                </span>
+                                                                {selected && (
+                                                                    <CheckIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </Listbox.Option>
+                                                );
+                                            })}
+                                        </Listbox.Options>
+                                    </div>
+                                </Listbox>
+
 
                             </div>
 
@@ -1320,7 +1731,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
 
             {/* Repuestos y Materiales */}
-            <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+            <div className="mb-4 border border-gray-200 rounded-lg overflow-visible">
                 <div
                     className="bg-white p-4 flex justify-between items-center cursor-pointer"
                     onClick={() => {
@@ -1350,7 +1761,6 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                 <thead>
                                     <tr className="bg-gray-50 text-xs text-gray-500 uppercase">
                                         <th className="px-4 py-2">Repuesto</th>
-
                                         <th className="px-4 py-2">Cantidad</th>
                                         <th className="px-4 py-2">Proveedor</th>
                                         <th className="px-4 py-2">Costo Unitario</th>
@@ -1362,19 +1772,24 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {repuestos.map((repuesto) => (
+                                    {repuestos.map((repuesto, index) => (
                                         <tr key={repuesto.id} className="border-b border-gray-100">
                                             {/* === REPUESTO === */}
                                             <td className="px-2 py-3">
-
                                                 <select
                                                     className="w-40 p-2 border border-gray-300 rounded"
                                                     value={repuesto.idSparePartMaterial}
-                                                    onChange={(e) => handleCambioRepuestoSelect(repuesto.id, e.target.value)}
+                                                    onChange={e => handleCambioRepuestoSelect(repuesto.id, e.target.value)}
                                                 >
                                                     <option value="">Selecciona un repuesto</option>
-                                                    {(Array.isArray(opcRepuestos) ? opcRepuestos : []).map((mat) => (
-                                                        <option key={mat.idSparePartMaterial} value={mat.idSparePartMaterial}>
+                                                    {(Array.isArray(opcRepuestos)
+                                                        ? opcRepuestos.filter(mat => mat.active === true)
+                                                        : []
+                                                    ).map(mat => (
+                                                        <option
+                                                            key={mat.idSparePartMaterial}
+                                                            value={mat.idSparePartMaterial}
+                                                        >
                                                             {mat.name} ({mat.measurementUnit})
                                                         </option>
                                                     ))}
@@ -1428,7 +1843,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                     type="text"
                                                     inputMode="numeric"
                                                     className={`w-30 p-2 border border-gray-300 rounded ${canEditFactor ? 'bg-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-                                                     disabled={!canEditFactor}
+                                                    disabled={!canEditFactor}
                                                     value={
                                                         repuesto.costoUnitario != null
                                                             ? repuesto.costoUnitario.toLocaleString('es-CO')
@@ -1622,9 +2037,17 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                         onChange={e => actualizarManoDeObra(item.id, 'contratista', e.target.value)}
                                                     >
                                                         <option value="">Selecciona contratista</option>
-                                                        {userOptions.filter(u => ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name)).map(u => (
-                                                            <option key={u.idUser} value={u.idUser}>{u.firstName + ' ' + u.lastName}</option>
-                                                        ))}
+                                                        {userOptions
+                                                            .filter(u =>
+                                                                ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name) &&
+                                                                u.active === true &&
+                                                                u.userStatus?.name === 'Activo'
+                                                            )
+                                                            .map((u, i) => (
+                                                                <option key={`${u.idUser}-${i}`} value={u.idUser}>
+                                                                    {`${u.firstName} ${u.lastName}`}
+                                                                </option>
+                                                            ))}
                                                     </select>
                                                 </td>
                                                 <td className="w-28 px-3 py-3">
@@ -1768,8 +2191,10 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                                                             onChange={e => actualizarInsumo(item.id, idx, 'selectedProvider', e.target.value)}
                                                                                         >
                                                                                             <option value="">— Proveedor —</option>
-                                                                                            {provs.map(p => (
-                                                                                                <option key={p.idProvider} value={p.idProvider}>{p.name}</option>
+                                                                                            {provs.map((p, i) => (
+                                                                                                <option key={`${p.idProvider}-${i}`} value={p.idProvider}>
+                                                                                                    {p.name}
+                                                                                                </option>
                                                                                             ))}
                                                                                         </select>
                                                                                     </td>
@@ -1802,11 +2227,11 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                                                             {ins.costoTotal.toLocaleString()}
                                                                                         </span>
                                                                                     </td>
-                                                                                     <td className="px-3 py-2">
+                                                                                    <td className="px-3 py-2">
                                                                                         <span className="text-sm font-medium text-gray-800">
-                                                                                            
+
                                                                                         </span>
-                                                                                     </td>
+                                                                                    </td>
 
 
                                                                                     <td className="px-3 py-2 text-center">
@@ -1828,7 +2253,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                                                 ${item.insumos.reduce((sum, ins) => sum + (parseFloat(ins.costoTotal) || 0), 0).toLocaleString()}
                                                                             </td>
                                                                             <td className="px-3 py-2"></td>
-                                                                            
+
                                                                             <td className="px-3 py-2"></td>
                                                                         </tr>
                                                                     </tfoot>
@@ -1863,91 +2288,182 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 )}
             </div>
 
-            {/* informacion de cotizacion de factura */}
-
-            <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+            {/* Información de cotización de factura */}
+            <div className="mb-4 border border-gray-200 rounded-lg overflow-visible">
                 <div
                     className="bg-white p-4 flex justify-between items-center cursor-pointer"
                     onClick={() => {
-                        if (!soloPuedeEditarRepuestos && !soloPuedeEditarManoObra) toggleSeccion('infoCotizacion')
+                        if (!soloPuedeEditarRepuestos && !soloPuedeEditarManoObra)
+                            toggleSeccion('infoCotizacion');
                     }}
                 >
-                    <h2 className="text-lg font-semibold text-blue-800">Información de cotizacion de factura</h2>
+                    <h2 className="text-lg font-semibold text-blue-800">
+                        Información de cotización de factura
+                    </h2>
                     {secciones.infoCotizacion ? <FaChevronUp /> : <FaChevronDown />}
                 </div>
 
                 {secciones.infoCotizacion && (
                     <div className="bg-white p-4 border-t border-gray-200">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            {/* No. cotización */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">No. cotización</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    No. cotización
+                                </label>
                                 <input
-                                    value={formulario.numeroCotizacion}
+                                    type="text"
                                     name="numeroCotizacion"
+                                    value={formulario.numeroCotizacion}
                                     onChange={handleCambioFormulario}
-                                    type="text" className="w-full p-2 border border-gray-300 rounded" />
+                                    className="w-full p-2 border border-gray-300 rounded"
+                                />
                             </div>
+
+                            {/* Fecha de cotización */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Fecha de cotización</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Fecha de cotización
+                                </label>
                                 <input
+                                    type="date"
+                                    name="fechaCotizacion"
                                     value={formulario.fechaCotizacion}
-                                    name='fechaCotizacion'
                                     onChange={handleCambioFormulario}
-                                    type="date" className="w-full p-2 border border-gray-300 rounded" />
+                                    className="w-full p-2 border border-gray-300 rounded"
+                                />
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Cotizado por</label>
 
-                                <select
-                                    name="cotizadoPor"
+                            {/* Cotizado por */}
+                            <div>
+                                <Listbox
                                     value={formulario.cotizadoPor}
-                                    onChange={handleCambioFormulario}
-                                    className="w-full p-2 border border-gray-300 rounded"
+                                    onChange={val => setFormulario(f => ({ ...f, cotizadoPor: val }))}
                                 >
-                                    <option value="">Selecciona usuario</option>
-                                    {userOptions.map(u => (
-                                        <option key={u.idUser} value={u.idUser}>{`${u.firstName} ${u.lastName}`}</option>
-                                    ))}
-                                </select>
+                                    <Listbox.Label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Cotizado por
+                                    </Listbox.Label>
+                                    <div className="relative">
+                                        <Listbox.Button className="w-full border border-gray-300 rounded-md p-2 flex justify-between items-center bg-white">
+                                            <span className="truncate">
+                                                {uniqueUserOptions.find(u => u.idUser === formulario.cotizadoPor)
+                                                    ? `${uniqueUserOptions.find(u => u.idUser === formulario.cotizadoPor).firstName} ${uniqueUserOptions.find(u => u.idUser === formulario.cotizadoPor).lastName}`
+                                                    : 'Selecciona usuario'}
+                                            </span>
+                                            <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
+                                        </Listbox.Button>
 
+                                        <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 overflow-auto focus:outline-none">
+                                            {uniqueUserOptions.map((u, idx) => {
+                                                const isLast = idx === uniqueUserOptions.length - 1;
+                                                return (
+                                                    <Listbox.Option
+                                                        key={u.idUser}
+                                                        value={u.idUser}
+                                                        ref={isLast ? lastUserRef : null}
+                                                        className={({ active }) =>
+                                                            `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''}`
+                                                        }
+                                                    >
+                                                        {({ selected }) => (
+                                                            <>
+                                                                <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>
+                                                                    {u.firstName} {u.lastName}
+                                                                </span>
+                                                                {selected && (
+                                                                    <CheckIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </Listbox.Option>
+                                                );
+                                            })}
+                                        </Listbox.Options>
+                                    </div>
+                                </Listbox>
                             </div>
+
+                            {/* No. facturación */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">No. facturación</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    No. facturación
+                                </label>
                                 <input
+                                    type="text"
+                                    name="numeroFacturacion"
                                     value={formulario.numeroFacturacion}
-                                    name='numeroFacturacion'
-                                    onChange={handleCambioFormulario}
-                                    type="text" className="w-full p-2 border border-gray-300 rounded" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Facturado por</label>
-                                <select
-                                    name="facturadoPor"
-                                    value={formulario.facturadoPor}
                                     onChange={handleCambioFormulario}
                                     className="w-full p-2 border border-gray-300 rounded"
-                                >
-                                    <option value="">Selecciona usuario</option>
-                                    {userOptions.map(u => (
-                                        <option key={u.idUser} value={u.idUser}>
-                                            {`${u.firstName} ${u.lastName}`}
-                                        </option>
-                                    ))}
-                                </select>
+                                />
                             </div>
+
+                            {/* Facturado por */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Número de acta de entrega</label>
+                                <Listbox
+                                    value={formulario.facturadoPor}
+                                    onChange={val => setFormulario(f => ({ ...f, facturadoPor: val }))}
+                                >
+                                    <Listbox.Label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Facturado por
+                                    </Listbox.Label>
+                                    <div className="relative">
+                                        <Listbox.Button className="w-full border border-gray-300 rounded-md p-2 flex justify-between items-center bg-white">
+                                            <span className="truncate">
+                                                {uniqueUserOptions.find(u => u.idUser === formulario.facturadoPor)
+                                                    ? `${uniqueUserOptions.find(u => u.idUser === formulario.facturadoPor).firstName} ${uniqueUserOptions.find(u => u.idUser === formulario.facturadoPor).lastName}`
+                                                    : 'Selecciona usuario'}
+                                            </span>
+                                            <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
+                                        </Listbox.Button>
+
+                                        <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 overflow-auto focus:outline-none">
+                                            {uniqueUserOptions.map((u, idx) => {
+                                                const isLast = idx === uniqueUserOptions.length - 1;
+                                                return (
+                                                    <Listbox.Option
+                                                        key={u.idUser}
+                                                        value={u.idUser}
+                                                        ref={isLast ? lastUserRef : null}
+                                                        className={({ active }) =>
+                                                            `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''}`
+                                                        }
+                                                    >
+                                                        {({ selected }) => (
+                                                            <>
+                                                                <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>
+                                                                    {u.firstName} {u.lastName}
+                                                                </span>
+                                                                {selected && (
+                                                                    <CheckIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </Listbox.Option>
+                                                );
+                                            })}
+                                        </Listbox.Options>
+                                    </div>
+                                </Listbox>
+                            </div>
+
+                            {/* Número de acta de entrega */}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Número de acta de entrega
+                                </label>
                                 <input
+                                    type="text"
+                                    name="numeroActaEntrega"
                                     value={formulario.numeroActaEntrega}
-                                    name='numeroActaEntrega'
                                     onChange={handleCambioFormulario}
-                                    type="text" className="w-full p-2 border border-gray-300 rounded" />
+                                    className="w-full p-2 border border-gray-300 rounded"
+                                />
                             </div>
                         </div>
                     </div>
-
                 )}
             </div>
+
 
 
             {/* Total */}

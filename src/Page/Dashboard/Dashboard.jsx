@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FaUser, FaClipboardList, FaClipboardCheck, FaClock, FaCog } from 'react-icons/fa';
+import { FaUser, FaClipboardList, FaClipboardCheck, FaClock, FaCog, FaSpinner } from 'react-icons/fa';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -26,6 +26,7 @@ ChartJS.register(
 const API_URL = 'https://api.trailers.trailersdelcaribe.net/api';
 
 const Dashboard = ({ user }) => {
+  const [isLoading, setIsLoading] = useState(true);
   const [clientesActivos, setClientesActivos] = useState(0);
   const [ordenesActivas, setOrdenesActivas] = useState(0);
   const [tiposServicioCount, setTiposServicioCount] = useState(0);
@@ -128,30 +129,42 @@ const Dashboard = ({ user }) => {
   };
 
   useEffect(() => {
+    setIsLoading(true);
+
     async function fetchMetrics() {
       try {
         const [
-          { data: clients },
-          { data: ordersResp },
+          { data: clientsResp },
+          ordersResp,
           { data: svcTypes },
           { data: statuses }
         ] = await Promise.all([
-          axios.get(`${API_URL}/client`),
-          axios.get(`${API_URL}/order`, {
-            params: user?.idUser ? { userId: user.idUser } : {}
+          axios.get(`${API_URL}/client`, {
+            params: { filter: 'Activo', limit: 1, offset: 0 }
+          }),
+          axios.get(`${API_URL}/order/all`, {
+            params: { showActiveOnly: 'true' }
           }),
           axios.get(`${API_URL}/service-type`),
           axios.get(`${API_URL}/order-status`),
         ]);
 
-        setClientesActivos(clients.total || 0);
-        setOrdenesActivas(ordersResp.total || 0);
+        // 1) Clientes:
+        setClientesActivos(clientsResp.total || 0);
+
+        // 2) Órdenes:
+        const allOrders = Array.isArray(ordersResp.data)
+          ? ordersResp.data
+          : [];
+        const totalOrders = allOrders.length;
+
+        setOrdenesActivas(totalOrders);
+        setOrdenes(allOrders);
         setTiposServicioCount(svcTypes.length || 0);
         setEstadosCount(statuses.length || 0);
 
 
-        const allOrders = Array.isArray(ordersResp.data) ? ordersResp.data : [];
-        setOrdenes(allOrders);
+
 
 
 
@@ -209,7 +222,7 @@ const Dashboard = ({ user }) => {
             return hasCreatedDate && hasUpdatedDate && sonDiferentes;
           });
 
-          console.log('Órdenes con updatedAt diferente:', ordenesConActualizacion.length);
+          
 
           if (ordenesConActualizacion.length > 0) {
             const tiemposActualizacion = ordenesConActualizacion.map(o => {
@@ -218,7 +231,7 @@ const Dashboard = ({ user }) => {
               const diffTime = Math.abs(fechaFin - fechaInicio);
               const diasDiferencia = diffTime / (1000 * 60 * 60 * 24);
 
-              console.log(`Orden ${o.orderNumber || o.idOrder}: Procesamiento = ${diasDiferencia.toFixed(1)} días`);
+             
 
               return diasDiferencia;
             }).filter(tiempo => tiempo > 0 && tiempo < 365);
@@ -227,10 +240,10 @@ const Dashboard = ({ user }) => {
               ? tiemposActualizacion.reduce((a, b) => a + b, 0) / tiemposActualizacion.length
               : 0;
 
-            console.log('Tiempo promedio de procesamiento:', promedioActualizacion);
+            
             setTiempoPromedio(promedioActualizacion > 0 ? promedioActualizacion.toFixed(1) : '0.0');
           } else {
-            console.log('No se encontraron órdenes para calcular tiempo promedio');
+            
             setTiempoPromedio('N/A');
           }
         }
@@ -339,6 +352,8 @@ const Dashboard = ({ user }) => {
       } catch (e) {
 
         setTiempoPromedio('Error');
+      } finally {
+        setIsLoading(false);
       }
     }
     fetchMetrics();
@@ -349,6 +364,14 @@ const Dashboard = ({ user }) => {
       setCurrentPage(newPage);
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <FaSpinner className="animate-spin text-4xl text-gray-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="bg-gray-50 p-6">
@@ -448,46 +471,29 @@ const Dashboard = ({ user }) => {
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 flex justify-between items-center border-b">
           <h2 className="text-lg font-semibold">Órdenes recientes</h2>
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-500">
-              Página {currentPage} de {totalPages} ({ordenes.length} total)
-            </span>
-            <FaCog className="text-gray-500 cursor-pointer" />
-          </div>
+          <span className="text-sm text-gray-500">
+            Total: {ordenes.length} órdenes
+          </span>
         </div>
+
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">#</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tipo</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Creación</th>
+                {/* tus <th>... */}
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {ordenesRecientes.length > 0 ? (
-                ordenesRecientes.map(o => (
-                  <tr key={o.idOrder}>
-                    <td className="px-6 py-4 whitespace-nowrap font-medium text-yellow-500">
-                      #{o.orderNumber || o.idOrder}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">
-                      {o.client?.name || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-blue-500">
-                      {o.orderStatus?.name || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">
-                      {o.serviceTypes?.map(st => st.name).join(', ') || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-gray-700">
-                      {new Date(o.createdAt).toLocaleString()}
-                    </td>
-                  </tr>
-                ))
-              ) : (
+              {ordenesRecientes.map(o => (
+                <tr key={o.idOrder}>
+                  <td className="px-6 py-4">#{o.orderNumber || o.idOrder}</td>
+                  <td className="px-6 py-4">{o.client?.name || 'N/A'}</td>
+                  <td className="px-6 py-4">{o.orderStatus?.name || 'N/A'}</td>
+                  <td className="px-6 py-4">{o.serviceTypes?.map(st => st.name).join(', ') || 'N/A'}</td>
+                  <td className="px-6 py-4">{new Date(o.createdAt).toLocaleString()}</td>
+                </tr>
+              ))}
+              {ordenesRecientes.length === 0 && (
                 <tr>
                   <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
                     No hay órdenes para mostrar
@@ -498,66 +504,26 @@ const Dashboard = ({ user }) => {
           </table>
         </div>
 
-        {/* Controles de paginación */}
-        {totalPages > 1 && (
-          <div className="px-6 py-3 border-t border-gray-200 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className={`px-3 py-1 rounded text-sm ${currentPage === 1
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-blue-500 text-white hover:bg-blue-600'
-                  }`}
-              >
-                Anterior
-              </button>
+        {/* Paginación con flechas y contador */}
+        <div className="flex justify-center items-center mt-6 gap-4">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+            disabled={currentPage === 1}
+            className={`p-2 rounded hover:bg-gray-200 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+          >‹</button>
 
-              <div className="flex items-center space-x-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
+          <span className="text-sm text-gray-700">
+            Página {currentPage} de {totalPages}
+          </span>
 
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => handlePageChange(pageNum)}
-                      className={`px-3 py-1 rounded text-sm ${pageNum === currentPage
-                          ? 'bg-blue-500 text-white'
-                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className={`px-3 py-1 rounded text-sm ${currentPage === totalPages
-                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                    : 'bg-blue-500 text-white hover:bg-blue-600'
-                  }`}
-              >
-                Siguiente
-              </button>
-            </div>
-
-            <div className="text-sm text-gray-500">
-              Mostrando {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, ordenes.length)} de {ordenes.length}
-            </div>
-          </div>
-        )}
+          <button
+            onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            className={`p-2 rounded hover:bg-gray-200 ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+          >›</button>
+        </div>
       </div>
     </div>
   );

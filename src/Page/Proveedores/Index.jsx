@@ -5,172 +5,130 @@ import { toast } from 'react-toastify';
 const Proveedores = () => {
   const API_URL = 'https://api.trailers.trailersdelcaribe.net/api/provider';
 
+  // Estados UI
+  const [proveedores, setProveedores] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [busqueda, setBusqueda] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [documentTypes, setDocumentTypes] = useState([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const ITEMS_PER_PAGE = 6;
 
+  const [modo, setModo] = useState('agregar');
+  const [mostrarModal, setMostrarModal] = useState(false);
   const proveedoresVacio = {
     name: '',
     email: '',
     phoneNumber: '',
     document: { documentNumber: '', documentTypeId: '' }
   };
-
-
-  // States
-  const [proveedores, setProveedores] = useState([]);
-  const [documentTypes, setDocumentTypes] = useState([]);
-  const [busqueda, setBusqueda] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 4;
-
-  const [modo, setModo] = useState('agregar');
-  const [mostrarModal, setMostrarModal] = useState(false);
   const [nuevoProveedor, setNuevoProveedor] = useState(proveedoresVacio);
 
-  // Carga de proveedores desde la API
-  const cargarProveedores = async () => {
+  // Carga paginada desde la API
+  const fetchProveedores = async () => {
+    setLoading(true);
     try {
-      const res = await axios.get(API_URL);
-      const proveedoresConDocumento = res.data.data.map(p => ({
-        idProvider: p.idProvider,
-        name: p.name,
-        email: p.email,
-        phoneNumber: p.phoneNumber,
-
-        documentTypeAbbrev: p.document?.documentType?.abbreviation ?? '',
-
-        document: p.document
-          ? {
-            documentNumber: p.document.documentNumber,
-            documentTypeId: p.document.documentType.idDocumentType
-          }
-          : {
-            documentNumber: '',
-            documentTypeId: ''
-          }
-      }));
-      setProveedores(proveedoresConDocumento);
+      const params = {
+        limit: ITEMS_PER_PAGE,
+        offset: (currentPage - 1) * ITEMS_PER_PAGE,
+        search: busqueda.trim() || undefined,
+      };
+      const res = await axios.get(API_URL, { params });
+      const { data, total } = res.data;
+      setProveedores(data);
+      setTotalPages(Math.ceil(total / ITEMS_PER_PAGE));
     } catch (error) {
       console.error('Error al cargar proveedores:', error);
+      toast.error('No se pudieron cargar los proveedores');
       setProveedores([]);
+    } finally {
+      setLoading(false);
     }
   };
-
-
-
-
-  useEffect(() => { cargarProveedores(); }, []);
   useEffect(() => {
-    const fetchDocumentTypes = async () => {
-      try {
-        const res = await axios.get('https://api.trailers.trailersdelcaribe.net/api/document-type');
-        setDocumentTypes(res.data);
-      } catch (error) {
-        console.error('Error al cargar tipos de documento:', error);
-      }
-    };
-    fetchDocumentTypes();
+    axios
+      .get('https://api.trailers.trailersdelcaribe.net/api/document-type')
+      .then(res => setDocumentTypes(res.data))
+      .catch(err => console.error(err));
   }, []);
 
+  useEffect(() => {
+    fetchProveedores();
+  }, [busqueda, currentPage]);
 
-  useEffect(() => { setCurrentPage(1); }, [busqueda]);
-
-
-  const filtrados = proveedores.filter(d =>
-    (d.name || '').toLowerCase().includes(busqueda.toLowerCase()) ||
-    (d.email || '').toLowerCase().includes(busqueda.toLowerCase()) ||
-    (d.phoneNumber || '').toLowerCase().includes(busqueda.toLowerCase()) ||
-    (d.document?.documentNumber || '').toLowerCase().includes(busqueda.toLowerCase())
-  );
-
-  // Paginación sobre el array filtrado
-  const totalPages = Math.ceil(filtrados.length / itemsPerPage);
-  const indexOfLast = currentPage * itemsPerPage;
-  const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentItems = filtrados.slice(indexOfFirst, indexOfLast);
-
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    if (name === 'documentTypeId' || name === 'documentNumber') {
-      setNuevoProveedor(prev => ({
-        ...prev,
-        document: {
-          ...prev.document,
-          [name]: value
-        }
-      }));
-    } else {
-      setNuevoProveedor(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
-  };
-
+  // Modal
   const handleAbrirAgregar = () => {
     setModo('agregar');
     setNuevoProveedor(proveedoresVacio);
     setMostrarModal(true);
   };
-
   const cerrarModal = () => {
-    setModo('agregar');
     setMostrarModal(false);
+    setModo('agregar');
   };
 
-const handleGuardar = async () => {
-  try {
-    const payload = {
-      name: nuevoProveedor.name,
-      email: nuevoProveedor.email,
-      phoneNumber: nuevoProveedor.phoneNumber,
-      documentType: nuevoProveedor.document.documentTypeId, // <-- CORRECTO
-      documentNumber: nuevoProveedor.document.documentNumber,
-    };
-
-    if (modo === 'editar') {
-      await axios.patch(`${API_URL}/${nuevoProveedor.idProvider}`, payload);
-      toast.success('Proveedor actualizado correctamente');
+  // Form handlers (igual que antes)
+  const handleChange = e => {
+    const { name, value } = e.target;
+    if (name === 'documentTypeId' || name === 'documentNumber') {
+      setNuevoProveedor(prev => ({
+        ...prev,
+        document: { ...prev.document, [name]: value }
+      }));
     } else {
-      await axios.post(API_URL, payload);
-      toast.success('Proveedor creado correctamente');
+      setNuevoProveedor(prev => ({ ...prev, [name]: value }));
     }
+  };
 
-    await cargarProveedores();
-    cerrarModal();
-  } catch (error) {
-    console.error(error?.response?.data);
-    toast.error(error?.response?.data?.message || 'Ocurrió un error al guardar el proveedor');
-  }
+  const handleGuardar = async () => {
+    try {
+      const payload = {
+        name: nuevoProveedor.name,
+        email: nuevoProveedor.email,
+        phoneNumber: nuevoProveedor.phoneNumber,
+        documentType: nuevoProveedor.document.documentTypeId,
+        documentNumber: nuevoProveedor.document.documentNumber,
+      };
+      if (modo === 'editar') {
+        await axios.patch(`${API_URL}/${nuevoProveedor.idProvider}`, payload);
+        toast.success('Proveedor actualizado');
+      } else {
+        await axios.post(API_URL, payload);
+        toast.success('Proveedor creado');
+      }
+      cerrarModal();
+      fetchProveedores();
+    } catch (error) {
+      console.error(error);
+      toast.error(error.response?.data?.message || 'Error al guardar');
+    }
+  };
+
+ const handleEditar = proveedor => {
+  setNuevoProveedor({
+    idProvider: proveedor.idProvider,
+    name: proveedor.name,
+    email: proveedor.email,
+    phoneNumber: proveedor.phoneNumber,
+    document: {
+      
+      documentTypeId: proveedor.document?.documentType?.idDocumentType || '',
+      documentNumber: proveedor.document?.documentNumber || ''
+    }
+  });
+  setModo('editar');
+  setMostrarModal(true);
 };
 
-  const handleEditar = proveedor => {
-    setNuevoProveedor({
-      idProvider: proveedor.idProvider,
-      name: proveedor.name,
-      email: proveedor.email,
-      phoneNumber: proveedor.phoneNumber,
-      document: {
-        documentNumber: proveedor.document.documentNumber,
-        documentTypeId: proveedor.document.documentTypeId
-      }
-    });
-    setModo('editar');
-    setMostrarModal(true);
-  };
   const handleEliminar = async id => {
-    if (!window.confirm('¿Seguro que quieres eliminar este proveedor?')) return;
+    if (!window.confirm('¿Eliminar este proveedor?')) return;
     try {
       await axios.delete(`${API_URL}/${id}`);
-      toast.success('Proveedor eliminado correctamente');
-      await cargarProveedores();
+      toast.success('Proveedor eliminado');
+      fetchProveedores();
     } catch (error) {
-      const mensaje = error.response?.data?.message;
-      if (mensaje?.includes('repuestos o materiales asociados')) {
-        toast.error('No puedes eliminar este proveedor: tiene repuestos/materiales asociados');
-      } else {
-        toast.error('Ocurrió un error al eliminar el proveedor.');
-      }
-
+      console.error(error);
+      toast.error('Error al eliminar');
     }
   };
   return (
@@ -205,76 +163,60 @@ const handleGuardar = async () => {
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Listado de proveedores</h2>
 
-        <table className="w-full">
-          <thead>
-            <tr className="text-left">
-
-              <th className="py-2 text-sm font-medium text-gray-600">NIT</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Nombre</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Correo</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Número Teléfono</th>
-              <th className="py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {currentItems.length > 0 ? (
-              currentItems.map((pro) => (
-                <tr key={pro.idProvider} className="border-t border-gray-100">
-                  <td className="py-3 text-sm">{pro.document.documentNumber}</td>
-                  <td className="py-3 text-sm text-blue-800">{pro.name}</td>
-                  <td className="py-3 text-sm text-blue-600">{pro.email}</td>
-                  <td className="py-3 text-sm text-gray-600">{pro.phoneNumber}</td>
-                  <td className="py-3 flex gap-2 justify-end">
-                     <button onClick={() => handleEditar(pro)} className="p-1 bg-white rounded-full
-                    shadow-md hover:shadow-xl
-                    transform hover:-translate-y-0.5
-                    transition-all duration-150
-                    focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300
-                    disabled:opacity-50 disabled:cursor-not-allowed">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => handleEliminar(pro.idProvider)} className="p-1 bg-white rounded-full
-                      shadow-md hover:shadow-xl
-                      transform hover:-translate-y-0.5
-                      transition-all duration-150
-                      focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300
-                      disabled:opacity-50 disabled:cursor-not-allowed">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                   
-                  </td>
+        {loading ? (
+          <div className="flex justify-center py-16">
+            <svg className="animate-spin h-8 w-8 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+          </div>
+        ) : (
+          <>
+            <table className="w-full">
+              <thead>
+                <tr className="text-left">
+                  <th className="py-2 text-sm font-medium text-gray-600">NIT</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Nombre</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Correo</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Teléfono</th>
+                  <th className="py-2"></th>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="5" className="text-center p-2 text-gray-400">
-                  No hay coincidencias
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody>
+                {proveedores.length > 0 ? proveedores.map(p => (
+                  <tr key={p.idProvider} className="border-t border-gray-100">
+                    <td className="py-3 text-sm">{p.document.documentNumber}</td>
+                    <td className="py-3 text-sm ">{p.name}</td>
+                    <td className="py-3 text-sm ">{p.email}</td>
+                    <td className="py-3 text-sm ">{p.phoneNumber}</td>
+                    <td className="py-3 flex gap-2 justify-end">
+                      <button onClick={() => handleEditar(p)} className="p-1 bg-white rounded-full shadow-md hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-150 focus:ring-2 focus:ring-offset-2 focus:ring-blue-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                      </button>
+                      <button onClick={() => handleEliminar(p.idProvider)} className="p-1 bg-white rounded-full shadow-md hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-150 focus:ring-2 focus:ring-offset-2 focus:ring-red-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan="5" className="text-center p-4 text-gray-400">No hay proveedores</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
 
-
-        {/* Paginación */}
-        <div className="flex justify-center mt-6 gap-1">
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentPage(i + 1)}
-              className={`
-        w-6 h-6 flex items-center justify-center rounded-md text-sm
-        ${currentPage === i + 1 ? 'bg-gray-800 text-white' : ''}
-      `}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
+            <div className="flex justify-center items-center mt-6 gap-4">
+              <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className={`p-2 rounded hover:bg-gray-200 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}>‹</button>
+              <span className="text-sm text-gray-700">Página {currentPage} de {totalPages}</span>
+              <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className={`p-2 rounded hover:bg-gray-200 ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''}`}>›</button>
+            </div>
+          </>
+        )}
       </div>
       {/* Modal */}
 
@@ -295,7 +237,13 @@ const handleGuardar = async () => {
                   <select
                     name="documentTypeId"
                     value={nuevoProveedor.document.documentTypeId}
-                    onChange={handleChange}
+                    onChange={e => {
+                      const { name, value } = e.target;
+                      setNuevoProveedor(prev => ({
+                        ...prev,
+                        document: { ...prev.document, [name]: value }
+                      }));
+                    }}
                     required
                     className="w-full border border-gray-300 rounded-md p-2"
                   >
@@ -306,9 +254,9 @@ const handleGuardar = async () => {
                         <option key={dt.idDocumentType} value={dt.idDocumentType}>
                           {dt.name}
                         </option>
-                      ))
-                    }
+                      ))}
                   </select>
+
                 </div>
                 <div className="w-1/2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Número de identificación *</label>

@@ -16,86 +16,59 @@ const Insumos = () => {
   };
 
   // Estados
-  const [insumos, setinsumos] = useState([]);
+  const [insumos, setInsumos] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [busqueda, setBusqueda] = useState('');
-  const [showOnlyActive, setShowOnlyActive] = useState(true);
+ const [showOnlyActive, setShowOnlyActive] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [mostrarModal, setMostrarModal] = useState(false);
   const [modo, setModo] = useState('agregar');
-  const [nuevoInsumo, setnuevoInsumo] = useState(insumosVacios);
+  const [nuevoInsumo, setNuevoInsumo] = useState(insumosVacios);
 
-  // Parámetro de paginación
-  const itemsPerPage = 4;
+  const ITEMS_PER_PAGE = 6;
 
-  // Carga inicial de datos
+  // Carga proveedores (una sola vez)
+  useEffect(() => {
+    axios.get(API_PROVIDERS)
+      .then(res => setProveedores(res.data.data || res.data))
+      .catch(err => console.error('Error cargando proveedores:', err));
+  }, []);
+
+  // Carga paginada + búsqueda + activos
   const fetchData = async () => {
     try {
-      const insumosParams = showOnlyActive
-        ? { params: { filter: 'Activo' } }
-        : {};
-
-      const [resInsumos, resProveedores] = await Promise.all([
-        axios.get(API_URL, insumosParams),
-        axios.get(API_PROVIDERS),
-      ]);
-
-      // Normaliza respuesta a array
-      const listaInsumos = Array.isArray(resInsumos.data.data)
-        ? resInsumos.data.data
-        : Array.isArray(resInsumos.data)
-          ? resInsumos.data
-          : [];
-
-      const listaProveedores = Array.isArray(resProveedores.data.data)
-        ? resProveedores.data.data
-        : Array.isArray(resProveedores.data)
-          ? resProveedores.data
-          : [];
-
-      // Filtra solo los activos si corresponde
-      const insumosVisibles = showOnlyActive
-        ? listaInsumos.filter(ins => ins.active)
-        : listaInsumos;
-
-      setinsumos(insumosVisibles);
-      setProveedores(listaProveedores);
+      const params = {
+        limit: ITEMS_PER_PAGE,
+        offset: (currentPage - 1) * ITEMS_PER_PAGE,
+        search: busqueda.trim() || undefined,
+        showActiveOnly: showOnlyActive,
+      };
+      const res = await axios.get(API_URL, { params });
+      const { data, total } = res.data;
+      setInsumos(data);
+      setTotalPages(Math.ceil(total / ITEMS_PER_PAGE));
     } catch (error) {
-      console.error('Error al cargar datos:', error);
+      console.error('Error al cargar insumos:', error);
+      toast.error('No se pudieron cargar los insumos');
     }
   };
 
+  // Cada vez que cambian búsqueda, switch o página
   useEffect(() => {
     fetchData();
-  }, [showOnlyActive]);
+  }, [busqueda, showOnlyActive, currentPage]);
 
-  // Filtrado por búsqueda
-  const filtrados = Array.isArray(insumos)
-    ? insumos.filter(d =>
-        d.name.toLowerCase().includes(busqueda.toLowerCase()) ||
-        d.providers?.some(p =>
-          p.name.toLowerCase().includes(busqueda.toLowerCase())
-        )
-      )
-    : [];
-
-  // Paginación
-  const totalPages = Math.ceil(filtrados.length / itemsPerPage);
-  const idxLast = currentPage * itemsPerPage;
-  const idxFirst = idxLast - itemsPerPage;
-  const currentItems = filtrados.slice(idxFirst, idxLast);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [busqueda]);
-
-  // Helpers de modal
+  // Helpers de modal y formulario similares a antes
   const cerrarModal = () => {
     setMostrarModal(false);
     setModo('agregar');
-    setnuevoInsumo(insumosVacios);
+    setNuevoInsumo(insumosVacios);
   };
-
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setNuevoInsumo(prev => ({ ...prev, [name]: value }));
+  };
   const handleGuardar = async () => {
     try {
       const payload = {
@@ -103,64 +76,41 @@ const Insumos = () => {
         measurementUnit: nuevoInsumo.unidadMedida,
         providers: nuevoInsumo.proveedores,
       };
-
       if (modo === 'editar') {
-        await axios.patch(
-          `${API_URL}/${nuevoInsumo.idSupply}`,
-          payload
-        );
+        await axios.patch(`${API_URL}/${nuevoInsumo.idSupply}`, payload);
         toast.success('Insumo actualizado correctamente');
       } else {
         await axios.post(API_URL, payload);
         toast.success('Insumo creado correctamente');
       }
-
       await fetchData();
       cerrarModal();
-    } catch (error) {
-      console.error('Error al guardar:', error.response?.data || error);
-      toast.error(
-        error.response?.data?.message ||
-        'Ocurrió un error al guardar. Revisa la consola.'
-      );
+    } catch (err) {
+      console.error('Error al guardar:', err.response?.data || err);
+      toast.error(err.response?.data?.message || 'Error al guardar');
     }
   };
-
-  const handleEditar = (item) => {
-    setnuevoInsumo({
+  const handleEditar = item => {
+    setNuevoInsumo({
       idSupply: item.idSupply,
       nombre: item.name,
       unidadMedida: item.measurementUnit,
-      proveedores: Array.isArray(item.providers)
-        ? item.providers.map(p => p.idProvider)
-        : [],
+      proveedores: item.providers?.map(p => p.idProvider) || [],
       active: item.active,
     });
     setModo('editar');
     setMostrarModal(true);
   };
-
   const handleEliminar = async id => {
     if (!window.confirm('¿Eliminar este insumo?')) return;
     try {
       await axios.delete(`${API_URL}/${id}`);
       toast.success('Insumo eliminado correctamente');
-      await fetchData();
+      fetchData();
     } catch (err) {
       console.error('Error al eliminar:', err);
-      toast.error(
-        err.response?.data?.message ||
-        'Ocurrió un error al eliminar el Insumo.'
-      );
+      toast.error(err.response?.data?.message || 'Error al eliminar');
     }
-  };
-
-  const handleChange = e => {
-    const { name, value } = e.target;
-    setnuevoInsumo(prev => ({
-      ...prev,
-      [name]: value,
-    }));
   };
 
   return (
@@ -210,7 +160,7 @@ const Insumos = () => {
         </button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Listado de insumos</h2>
         <table className="w-full">
           <thead>
@@ -222,72 +172,44 @@ const Insumos = () => {
             </tr>
           </thead>
           <tbody>
-            {currentItems.length > 0 ? (
-              currentItems.map(item => (
-                <tr key={item.idSupply} className="border-t border-gray-100">
-                  <td className="py-2">{item.name}</td>
-                  <td className="py-2">{item.measurementUnit}</td>
-                  <td className="py-2">
-                    {item.providers?.length > 0
-                      ? item.providers.map(p => p.name).join(', ')
-                      : '—'}
-                  </td>
-                  <td className="py-2 flex gap-2 justify-end">
-                     <button
-                      onClick={() => handleEditar(item)}
-                      disabled={!item.active}
-                      className={`
-                        p-1                              
-                        bg-white                        
-                        rounded-full                    
-                        shadow-md                       
-                        hover:shadow-xl                 
-                        transform hover:-translate-y-0.5 
-                        transition-all duration-150    
-                        focus:outline-none
-                        focus:ring-2 focus:ring-offset-2 focus:ring-red-300 
-                        ${!item.active
-                          ? 'opacity-50 cursor-not-allowed'
-                          : ''
-                        }
-            `}
-                    >
-                      {/* Icono editar */}
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => handleEliminar(item.idSupply)}
-                      disabled={!item.active}
-                     className={`
-                        p-1                              
-                        bg-white                        
-                        rounded-full                    
-                        shadow-md                       
-                        hover:shadow-xl                 
-                        transform hover:-translate-y-0.5 
-                        transition-all duration-150    
-                        focus:outline-none
-                        focus:ring-2 focus:ring-offset-2 focus:ring-red-300 
-                        ${!item.active
-                          ? 'opacity-50 cursor-not-allowed'
-                          : ''
-                        }
-            `}
-                    >
-                      {/* Icono eliminar */}
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                   
-                  </td>
-                </tr>
-              ))
-            ) : (
+            {insumos.map(item => (
+              <tr key={item.idSupply} className="border-t border-gray-100">
+                <td className="py-2">{item.name}</td>
+                <td className="py-2">{item.measurementUnit}</td>
+                <td className="py-2">
+                  {item.providers?.map(p => p.name).join(', ') || '—'}
+                </td>
+                <td className="py-2 flex gap-2 justify-end">
+                  <button
+                    onClick={() => handleEditar(item)}
+                    disabled={!item.active}
+                    className={`p-1 bg-white rounded-full shadow-md hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 ${
+                      !item.active ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700"
+                         fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleEliminar(item.idSupply)}
+                    disabled={!item.active}
+                    className={`p-1 bg-white rounded-full shadow-md hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-300 ${
+                      !item.active ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700"
+                         fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                    </svg>
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {insumos.length === 0 && (
               <tr>
                 <td colSpan={4} className="text-center py-4 text-gray-500">
                   No hay coincidencias
@@ -297,21 +219,21 @@ const Insumos = () => {
           </tbody>
         </table>
 
-        {/* Paginación */}
-        <div className="flex justify-center mt-4 space-x-2">
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentPage(i + 1)}
-              className={`w-8 h-8 flex items-center justify-center rounded ${
-                currentPage === i + 1
-                  ? 'bg-gray-800 text-white'
-                  : 'bg-gray-200'
-              }`}
-            >
-              {i + 1}
-            </button>
-          ))}
+        {/* Paginación con flechas y contador */}
+        <div className="flex justify-center items-center mt-6 gap-4">
+          <button
+            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+            disabled={currentPage === 1}
+            className={`p-2 rounded hover:bg-gray-200 ${currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >‹</button>
+          <span className="text-sm text-gray-700">
+            Página {currentPage} de {totalPages}
+          </span>
+          <button
+            onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            className={`p-2 rounded hover:bg-gray-200 ${currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''}`}
+          >›</button>
         </div>
       </div>
 
@@ -385,11 +307,11 @@ const Insumos = () => {
                         <span className="truncate">
                           {Array.isArray(proveedores)
                             ? (
-                                proveedores
-                                  .filter(p => nuevoInsumo.proveedores.includes(p.idProvider))
-                                  .map(p => p.name)
-                                  .join(', ')
-                              ) || 'Selecciona proveedores'
+                              proveedores
+                                .filter(p => nuevoInsumo.proveedores.includes(p.idProvider))
+                                .map(p => p.name)
+                                .join(', ')
+                            ) || 'Selecciona proveedores'
                             : 'Selecciona proveedores'}
                         </span>
                         <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
@@ -401,17 +323,15 @@ const Insumos = () => {
                             key={p.idProvider}
                             value={p.idProvider}
                             className={({ active }) =>
-                              `cursor-pointer select-none relative py-2 pl-8 pr-4 ${
-                                active ? 'bg-blue-100' : ''
+                              `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''
                               }`
                             }
                           >
                             {({ selected }) => (
                               <>
                                 <span
-                                  className={`block truncate ${
-                                    selected ? 'font-semibold' : 'font-normal'
-                                  }`}
+                                  className={`block truncate ${selected ? 'font-semibold' : 'font-normal'
+                                    }`}
                                 >
                                   {p.name}
                                 </span>

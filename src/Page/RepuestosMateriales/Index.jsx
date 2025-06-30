@@ -4,174 +4,128 @@ import { toast } from 'react-toastify';
 import { Listbox } from '@headlessui/react'
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/24/solid'
 
-
-
 const RepuestosYMateriales = () => {
   const API_URL = 'https://api.trailers.trailersdelcaribe.net/api/spare-part-material';
   const API_PROVIDERS = 'https://api.trailers.trailersdelcaribe.net/api/provider';
   const API_VEHICULO = 'https://api.trailers.trailersdelcaribe.net/api/vehicule-type';
 
+  const ITEMS_PER_PAGE = 6;
   const repuestoVacio = {
     nombre: '',
+    unidadMedida: '',
     proveedores: [],
-    costoUnitario: '',
-    tipoVehiculo: '',
     active: true,
   };
 
-  // Estados
   const [repuestos, setRepuestos] = useState([]);
   const [proveedores, setProveedores] = useState([]);
+  const [vehicleTypeOptions, setVehicleTypeOptions] = useState([]);
+
   const [busqueda, setBusqueda] = useState('');
   const [showOnlyActive, setShowOnlyActive] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [loading, setLoading] = useState(false);
+
   const [mostrarModal, setMostrarModal] = useState(false);
   const [modo, setModo] = useState('agregar');
   const [nuevoRepuesto, setNuevoRepuesto] = useState(repuestoVacio);
-  const [vehicleTypeOptions, setVehicleTypeOptions] = useState([]);
 
-  // Parámetro de paginación
-  const itemsPerPage = 4;
+  // 1) Carga inicial de proveedores y tipos de vehículo
+  useEffect(() => {
+    axios.get(API_PROVIDERS).then(r => setProveedores(r.data.data)).catch(console.error);
+    axios.get(API_VEHICULO).then(r => setVehicleTypeOptions(r.data)).catch(console.error);
+  }, []);
 
-  // Carga inicial de datos
-  const fetchData = async () => {
-    try {
-      const repuestosParams = showOnlyActive
-        ? { params: { filter: 'Activo' } }
-        : {};
-      const [resRepuestos, resProveedores] = await Promise.all([
-        axios.get(API_URL, repuestosParams),
-        axios.get(API_PROVIDERS),
-      ]);
-      setRepuestos(resRepuestos.data.data);
-      setProveedores(resProveedores.data.data);
-    } catch (error) {
-      console.error('Error al cargar datos:', error);
-    }
-  };
-
-
-  const cargarOpciones = async () => {
-    try {
-      const { data } = await axios.get(`${API_VEHICULO}`);
-      setVehicleTypeOptions(data);
-    } catch (error) {
-      toast.error("Error al cargar Tipo vehiculo");
-    }
-  };
-
-
+  // 2) Cada vez que cambian búsqueda / switch / página, refetch
   useEffect(() => {
     fetchData();
-    cargarOpciones();
-  }, [showOnlyActive]);
+  }, [busqueda, showOnlyActive, currentPage]);
 
-  // Filtrado
-  const filtrados = repuestos.filter(d =>
-    d.name.toLowerCase().includes(busqueda.toLowerCase()) ||
-    d.providers?.some(p =>
-      p.name.toLowerCase().includes(busqueda.toLowerCase())
-    )
-  );
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+    const params = {
+     limit: ITEMS_PER_PAGE,
+     offset: (currentPage - 1) * ITEMS_PER_PAGE,
+     search: busqueda.trim() || undefined,
+      showActiveOnly: showOnlyActive, 
+   };
+      const res = await axios.get(API_URL, { params });
+      const { data, total } = res.data;
+      setRepuestos(data);
+      setTotalPages(Math.ceil(total / ITEMS_PER_PAGE));
+    } catch (err) {
+      console.error(err);
+      toast.error('Error al cargar repuestos');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  // Paginación sobre el filtrado
-  const totalPages = Math.ceil(filtrados.length / itemsPerPage);
-  const idxLast = currentPage * itemsPerPage;
-  const idxFirst = idxLast - itemsPerPage;
-  const currentItems = filtrados.slice(idxFirst, idxLast);
 
-  // Resetear página al cambiar búsqueda
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [busqueda]);
-
-  // Helpers de modal
+  const abrirAgregar = () => {
+    setModo('agregar');
+    setMostrarModal(true);
+    setNuevoRepuesto(repuestoVacio);
+  };
   const cerrarModal = () => {
     setMostrarModal(false);
     setModo('agregar');
     setNuevoRepuesto(repuestoVacio);
   };
-  const abrirAgregar = () => {
-    setModo('agregar');
-    setNuevoRepuesto(repuestoVacio);
-    setMostrarModal(true);
-  };
 
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setNuevoRepuesto(prev => ({ ...prev, [name]: value }));
+  };
 
   const handleGuardar = async () => {
     try {
-
       const payload = {
         name: nuevoRepuesto.nombre,
         measurementUnit: nuevoRepuesto.unidadMedida,
-
         providers: nuevoRepuesto.proveedores
       };
-
-
       if (modo === 'editar') {
         payload.active = nuevoRepuesto.active;
-        await axios.patch(
-          `${API_URL}/${nuevoRepuesto.idSparePartMaterial}`,
-          payload
-        );
-        toast.success('Repuesto actualizado correctamente');
+        await axios.patch(`${API_URL}/${nuevoRepuesto.idSparePartMaterial}`, payload);
+        toast.success('Repuesto actualizado');
       } else {
         await axios.post(API_URL, payload);
-        toast.success('Repuesto creado correctamente');
+        toast.success('Repuesto creado');
       }
-
-
       await fetchData();
       cerrarModal();
     } catch (error) {
-      console.error('Error al guardar:', error.response?.data || error);
-      toast.error(
-        error.response?.data?.message ||
-        'Ocurrió un error al guardar. Revisa la consola.'
-      );
+      console.error(error);
+      toast.error(error.response?.data?.message || 'Error al guardar');
     }
   };
 
-  const handleEditar = (item) => {
+  const handleEditar = item => {
+    setModo('editar');
+    setMostrarModal(true);
     setNuevoRepuesto({
       idSparePartMaterial: item.idSparePartMaterial,
       nombre: item.name,
       unidadMedida: item.measurementUnit,
-      proveedores: Array.isArray(item.providers)
-        ? item.providers.map(p => p.idProvider)
-        : [],
-
+      proveedores: item.providers.map(p => p.idProvider),
       active: item.active,
     });
-    setModo('editar');
-    setMostrarModal(true);
   };
+
   const handleEliminar = async id => {
     if (!window.confirm('¿Eliminar este repuesto?')) return;
     try {
       await axios.delete(`${API_URL}/${id}`);
-      await fetchData();
-      toast.success('Repuesto eliminado correctamente');
-
+      toast.success('Repuesto eliminado');
+      fetchData();
     } catch (err) {
-      console.error('Error al eliminar:', err);
-      toast.error(
-        err.response?.data?.message ||
-        'Ocurrió un error al eliminar el repuesto.'
-      );
+      console.error(err);
+      toast.error(err.response?.data?.message || 'Error al eliminar');
     }
   };
-
-  // Input change
-  const handleChange = e => {
-    const { name, value } = e.target;
-    setNuevoRepuesto(prev => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <h1 className="text-2xl font-bold text-gray-700 mb-6">Repuestos</h1>
@@ -220,104 +174,87 @@ const RepuestosYMateriales = () => {
         </button>
       </div>
 
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
-        <h2 className="text-lg font-semibold text-gray-700 mb-4">Listado de repuestos </h2>
+<div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+        <h2 className="text-lg font-semibold text-gray-700 mb-4">Listado de repuestos</h2>
+        {loading
+          ? <div className="flex justify-center py-16"><div className="animate-spin h-8 w-8 border-2 border-gray-300 border-t-transparent rounded-full"/></div>
+          : (
+            <>
+              <table className="w-full">
+                <thead>
+                  <tr className="text-left">
+                    <th className="py-2 text-sm font-medium text-gray-600">Nombre</th>
+                    <th className="py-2 text-sm font-medium text-gray-600">Unidad</th>
+                    <th className="py-2 text-sm font-medium text-gray-600">Proveedores</th>
+                    <th className="py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {repuestos.map(r => (
+                    <tr key={r.idSparePartMaterial} className="border-t border-gray-100">
+                      <td className="py-3 text-sm">{r.name}</td>
+                      <td className="py-3 text-sm">{r.measurementUnit}</td>
+                      <td className="py-3 text-sm">{r.providers.map(p=>p.name).join(', ') || '—'}</td>
+                      <td className="py-3 flex gap-2 justify-end">
+                        <button onClick={()=>handleEditar(r)} disabled={!r.active}
+                                className={`p-1 bg-white rounded-full shadow-md hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-150 focus:ring-2 focus:ring-blue-300 ${!r.active ? 'opacity-50 cursor-not-allowed':''}`}>
+                          {/* editar icono */}
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700"
+                               fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 
+                                     112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                          </svg>
+                        </button>
+                        <button onClick={()=>handleEliminar(r.idSparePartMaterial)} disabled={!r.active}
+                                className={`p-1 bg-white rounded-full shadow-md hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-150 focus:ring-2 focus:ring-red-300 ${!r.active ? 'opacity-50 cursor-not-allowed':''}`}>
+                          {/* eliminar icono */}
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700"
+                               fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 
+                                     01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 
+                                     00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                          </svg>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {repuestos.length===0 && (
+                    <tr>
+                      <td colSpan={4} className="text-center py-8 text-gray-400">
+                        {busqueda ? 'No hay coincidencias' : 'No hay repuestos'}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
 
-        <table className="w-full">
-          <thead>
-            <tr className="text-left">
-
-              <th className="py-2 text-sm font-medium text-gray-600">Nombre</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Unidad de Medida</th>
-              <th className="py-2 text-sm font-medium text-gray-600">Proveedor</th>
-
-              <th className="py-2"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {currentItems.length > 0 ? (
-              currentItems.map(Rep => (
-                <tr key={Rep.idSparePartMaterial} className="border-t border-gray-100">
-                  <td className="py-3 text-sm">{Rep.name}</td>
-                  <td className="py-3 text-sm">{Rep.measurementUnit}</td>
-                  <td className="px-4 py-3 text-sm">
-                    {Rep.providers && Rep.providers.length > 0
-                      ? Rep.providers.map(p => p.name).join(', ')
-                      : '—'}
-                  </td>
-
-                  <td className="py-3 flex gap-2 justify-end">
-                     <button onClick={() => handleEditar(Rep)}
-                      disabled={!Rep.active}
-                      className={`
-                        p-1                              
-                        bg-white                        
-                        rounded-full                    
-                        shadow-md                       
-                        hover:shadow-xl                 
-                        transform hover:-translate-y-0.5 
-                        transition-all duration-150    
-                        focus:outline-none
-                        focus:ring-2 focus:ring-offset-2 focus:ring-red-300 
-                        ${!Rep.active
-                          ? 'opacity-50 cursor-not-allowed'
-                          : ''
-                        }
-                 `}>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-                    <button onClick={() => handleEliminar(Rep.idSparePartMaterial)}
-                      disabled={!Rep.active}
-                     className={`
-                        p-1                              
-                        bg-white                        
-                        rounded-full                    
-                        shadow-md                       
-                        hover:shadow-xl                 
-                        transform hover:-translate-y-0.5 
-                        transition-all duration-150    
-                        focus:outline-none
-                        focus:ring-2 focus:ring-offset-2 focus:ring-red-300 
-                        ${!Rep.active
-                          ? 'opacity-50 cursor-not-allowed'
-                          : ''
-                        }
-                  `}>
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                   
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={6} className="text-center py-4 text-gray-500">
-                  No hay coincidencias
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-
-        {/* Paginación */}
-        <div className="flex justify-center mt-4 space-x-2">
-          {Array.from({ length: totalPages }, (_, i) => (
-            <button
-              key={i}
-              onClick={() => setCurrentPage(i + 1)}
-              className={`w-8 h-8 flex items-center justify-center rounded ${currentPage === i + 1
-                ? 'bg-gray-800 text-white'
-                : 'bg-gray-200'
-                }`}
-            >
-              {i + 1}
-            </button>
-          ))}
-        </div>
+              {/* paginación con flechas */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center mt-6 gap-4">
+                  <button
+                    onClick={() => setCurrentPage(p=>Math.max(p-1,1))}
+                    disabled={currentPage===1}
+                    className={`p-2 rounded hover:bg-gray-200 ${currentPage===1?'opacity-50 cursor-not-allowed':''}`}
+                  >
+                    ‹
+                  </button>
+                  <span className="text-sm text-gray-700">
+                    Página {currentPage} de {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(p=>Math.min(p+1,totalPages))}
+                    disabled={currentPage===totalPages}
+                    className={`p-2 rounded hover:bg-gray-200 ${currentPage===totalPages?'opacity-50 cursor-not-allowed':''}`}
+                  >
+                    ›
+                  </button>
+                </div>
+              )}
+            </>
+          )
+        }
       </div>
       {mostrarModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
@@ -430,7 +367,7 @@ const RepuestosYMateriales = () => {
                   </Listbox>
 
                 </div>
-              
+
               </div>
               <div className="flex justify-end space-x-3 mt-6">
                 <button type="button" onClick={cerrarModal} className="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400">
