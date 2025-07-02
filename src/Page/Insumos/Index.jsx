@@ -19,7 +19,7 @@ const Insumos = () => {
   const [insumos, setInsumos] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [busqueda, setBusqueda] = useState('');
- const [showOnlyActive, setShowOnlyActive] = useState(true);
+  const [showOnlyActive, setShowOnlyActive] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [mostrarModal, setMostrarModal] = useState(false);
@@ -149,7 +149,7 @@ const Insumos = () => {
         </label>
 
         <button
-          onClick={() => { setModo('agregar'); setnuevoInsumo(insumosVacios); setMostrarModal(true); }}
+          onClick={() => { setModo('agregar'); setNuevoInsumo(insumosVacios); setMostrarModal(true); }}
           className="bg-black text-white px-4 py-2 rounded-md flex items-center gap-2"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -160,7 +160,7 @@ const Insumos = () => {
         </button>
       </div>
 
-       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Listado de insumos</h2>
         <table className="w-full">
           <thead>
@@ -183,27 +183,25 @@ const Insumos = () => {
                   <button
                     onClick={() => handleEditar(item)}
                     disabled={!item.active}
-                    className={`p-1 bg-white rounded-full shadow-md hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 ${
-                      !item.active ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    className={`p-1 bg-white rounded-full shadow-md hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 ${!item.active ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700"
-                         fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
                   <button
                     onClick={() => handleEliminar(item.idSupply)}
                     disabled={!item.active}
-                    className={`p-1 bg-white rounded-full shadow-md hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-300 ${
-                      !item.active ? 'opacity-50 cursor-not-allowed' : ''
-                    }`}
+                    className={`p-1 bg-white rounded-full shadow-md hover:shadow-xl transform hover:-translate-y-0.5 transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-300 ${!item.active ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700"
-                         fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   </button>
                 </td>
@@ -239,19 +237,23 @@ const Insumos = () => {
 
       {mostrarModal && (
         <div className="fixed inset-0 flex items-center justify-center bg-black/30 z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-[700px] max-h-[90vh] overflow-auto">
+         <div className="bg-white p-6 rounded-lg shadow-lg w-[700px] max-h-[90vh]">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">
                 {modo === 'agregar' ? 'Agregar Insumo' : 'Editar Insumo'}
               </h2>
-              <button onClick={cerrarModal} className="text-gray-500 hover:text-gray-700 text-2xl leading-none">
+              <button
+                onClick={cerrarModal}
+                className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+              >
                 &times;
               </button>
             </div>
 
-            <form onSubmit={e => { e.preventDefault(); handleGuardar(); }}>
-              <div className="flex gap-x-4 mb-4">
-                <div className="w-full">
+            <form onSubmit={e => { e.preventDefault(); handleGuardar(); }} className="space-y-4">
+              {/* Nombre: ocupa toda la fila */}
+              <div className="grid grid-cols-1">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Nombre *
                   </label>
@@ -266,8 +268,9 @@ const Insumos = () => {
                 </div>
               </div>
 
-              <div className="flex gap-x-4 mb-4">
-                <div className="w-1/2">
+              {/* Unidad de medida + Proveedores lado a lado */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Unidad de medida *
                   </label>
@@ -293,31 +296,29 @@ const Insumos = () => {
                   </select>
                 </div>
 
-                <div className="w-1/2">
+                <div>
                   <Listbox
                     value={nuevoInsumo.proveedores}
-                    onChange={vals => setnuevoInsumo({ ...nuevoInsumo, proveedores: vals })}
+                    onChange={vals => setNuevoInsumo({ ...nuevoInsumo, proveedores: vals })}
                     multiple
                   >
                     <Listbox.Label className="block text-sm font-medium text-gray-700 mb-1">
                       Proveedores *
                     </Listbox.Label>
                     <div className="relative">
-                      <Listbox.Button className="w-full border border-gray-300 rounded-md p-2 flex justify-between items-center bg-white">
+                      <Listbox.Button className="w-full border border-gray-300 rounded-md p-2 flex justify-between items-center bg-white text-left">
                         <span className="truncate">
-                          {Array.isArray(proveedores)
-                            ? (
-                              proveedores
-                                .filter(p => nuevoInsumo.proveedores.includes(p.idProvider))
-                                .map(p => p.name)
-                                .join(', ')
-                            ) || 'Selecciona proveedores'
+                          {nuevoInsumo.proveedores.length > 0
+                            ? proveedores
+                              .filter(p => nuevoInsumo.proveedores.includes(p.idProvider))
+                              .map(p => p.name)
+                              .join(', ')
                             : 'Selecciona proveedores'}
                         </span>
                         <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
                       </Listbox.Button>
 
-                      <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base overflow-auto focus:outline-none">
+                      <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-48 overflow-auto rounded-md py-1 text-base focus:outline-none">
                         {proveedores.map(p => (
                           <Listbox.Option
                             key={p.idProvider}
@@ -336,9 +337,7 @@ const Insumos = () => {
                                   {p.name}
                                 </span>
                                 {selected && (
-                                  <CheckIcon
-                                    className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600"
-                                  />
+                                  <CheckIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
                                 )}
                               </>
                             )}
@@ -372,6 +371,7 @@ const Insumos = () => {
           </div>
         </div>
       )}
+
     </div>
   );
 };

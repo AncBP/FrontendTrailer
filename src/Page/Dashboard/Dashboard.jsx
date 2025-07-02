@@ -1,26 +1,31 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FaUser, FaClipboardList, FaClipboardCheck, FaClock, FaCog, FaSpinner } from 'react-icons/fa';
+import { FaUser, FaClipboardList, FaClipboardCheck, FaClock, FaCog, FaSpinner, FaTools, FaWrench, FaHardHat, FaCar, FaUserTie } from 'react-icons/fa'; // Added FaUserTie icon for drivers
+
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   ArcElement,
   Tooltip,
   Legend,
+  Filler,
 } from 'chart.js';
-import { Line, Doughnut } from 'react-chartjs-2';
+import { Line, Doughnut, Bar } from 'react-chartjs-2';
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
+  BarElement,
   ArcElement,
   Tooltip,
-  Legend
+  Legend,
+  Filler
 );
 
 const API_URL = 'https://api.trailers.trailersdelcaribe.net/api';
@@ -29,16 +34,14 @@ const Dashboard = ({ user }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [clientesActivos, setClientesActivos] = useState(0);
   const [ordenesActivas, setOrdenesActivas] = useState(0);
-  const [tiposServicioCount, setTiposServicioCount] = useState(0);
-  const [estadosCount, setEstadosCount] = useState(0);
-  const [ordenesRecientes, setOrdenesRecientes] = useState([]);
-  const [ordenes, setOrdenes] = useState([]);
+  const [cotPendientes, setCotPendientes] = useState(0);
+  const [tiempoPromedio, setTiempoPromedio] = useState(0);
+
+  const [allOrdersData, setAllOrdersData] = useState([]); // All fetched orders (unfiltered by 'showActiveOnly')
+  const [ordenesRecientes, setOrdenesRecientes] = useState([]); // Used for pagination of ALL orders
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [itemsPerPage] = useState(5);
-
-  const [cotPendientes, setCotPendientes] = useState(0);
-  const [tiempoPromedio, setTiempoPromedio] = useState(0);
 
   const [tipoGrafico, setTipoGrafico] = useState('ordenes');
   const [doughnutData, setDoughnutData] = useState({
@@ -47,6 +50,22 @@ const Dashboard = ({ user }) => {
   });
   const [lineChartData, setLineChartData] = useState({ labels: [], datasets: [] });
   const [ventasChartData, setVentasChartData] = useState({ labels: [], datasets: [] });
+  const [customerSegmentData, setCustomerSegmentData] = useState({});
+  const [clientesSegmentados, setClientesSegmentados] = useState({});
+
+  // Metrics that will be affected by global filter
+  const [mostUsedParts, setMostUsedParts] = useState([]);
+  const [mostUsedSupplies, setMostUsedSupplies] = useState([]);
+  const [dailyOrderData, setDailyOrderData] = useState({ labels: [], datasets: [] });
+  const [contractorOrderCounts, setContractorOrderCounts] = useState([]);
+  const [topAssignedDrivers, setTopAssignedDrivers] = useState([]); // New state for top drivers
+  const [totalUniqueAssignedDrivers, setTotalUniqueAssignedDrivers] = useState(0); // Renamed from assignedDriversCount for clarity
+
+  // --- ESTADOS DE FILTRO GLOBAL ---
+  const today = new Date();
+  const [globalSelectedYear, setGlobalSelectedYear] = useState(today.getFullYear());
+  const [globalSelectedMonth, setGlobalSelectedMonth] = useState(today.getMonth()); // 0-indexed
+  // --------------------------------
 
   const lineOptions = {
     responsive: true,
@@ -128,101 +147,218 @@ const Dashboard = ({ user }) => {
     cutout: '60%',
   };
 
+  const barOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        mode: 'index',
+        intersect: false,
+      }
+    },
+    scales: {
+      y: {
+        beginAtZero: true,
+        title: {
+          display: true,
+          text: 'Cantidad de Órdenes'
+        },
+        ticks: {
+          stepSize: 1
+        }
+      },
+      x: {
+        title: {
+          display: true,
+          text: 'Día del Mes'
+        }
+      }
+    }
+  };
+
+
+  // Helper function for Simple Linear Regression
+  const calculateLinearRegression = (data) => {
+    const n = data.length;
+    let sumX = 0;
+    let sumY = 0;
+    let sumXY = 0;
+    let sumX2 = 0;
+
+    for (let i = 0; i < n; i++) {
+      const x = i; // Month index (0 to n-1)
+      const y = data[i];
+
+      sumX += x;
+      sumY += y;
+      sumXY += x * y;
+      sumX2 += x * x;
+    }
+
+    const denominator = (n * sumX2) - (sumX * sumX);
+
+    if (denominator === 0) {
+      return { m: 0, b: sumY / n }; // Fallback for no variance
+    }
+
+    const m = ((n * sumXY) - (sumX * sumY)) / denominator;
+    const b = (sumY - (m * sumX)) / n;
+
+    return { m, b };
+  };
+
+  // Helper para filtrar órdenes por año y mes
+  const filterOrdersByDate = (ordersArray, year, month) => {
+    return ordersArray.filter(order => {
+      if (!order.createdAt) return false;
+      const orderDate = new Date(order.createdAt);
+      return orderDate.getFullYear() === year && orderDate.getMonth() === month;
+    });
+  };
+
+  // Customer Segmentation Analysis (always for current year as per new requirement)
+  async function analyzeCustomerSegmentation(allOrders, targetYear) {
+    try {
+      const clientsResponse = await axios.get(`${API_URL}/client`, {
+        params: { filter: 'Activo', limit: 1000, offset: 0 }
+      });
+      const allActiveClients = clientsResponse.data.data || [];
+
+      const clientOrderCounts = {};
+
+      allActiveClients.forEach(client => {
+        clientOrderCounts[client.idClient] = 0;
+      });
+
+      const ordersInTargetYear = allOrders.filter(order => {
+        const orderDate = new Date(order.createdAt);
+        return orderDate.getFullYear() === targetYear &&
+          allActiveClients.some(client => client.idClient === order.client?.idClient);
+      });
+
+      ordersInTargetYear.forEach(order => {
+        const clientId = order.client?.idClient;
+        if (clientId) { // Ensure client ID exists before counting
+          clientOrderCounts[clientId] = (clientOrderCounts[clientId] || 0) + 1;
+        }
+      });
+
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(today.getMonth() - 3);
+
+      let frecuentes = 0;
+      let regulares = 0;
+      let esporadicos = 0;
+      let nuevos = 0;
+
+      allActiveClients.forEach(client => {
+        const clientId = client.idClient;
+        const orderCount = clientOrderCounts[clientId] || 0;
+
+        if (orderCount >= 6) {
+          frecuentes++;
+        } else if (orderCount >= 3) {
+          regulares++;
+        } else if (orderCount >= 1) {
+          esporadicos++;
+        } else {
+          // A client is "new" if they have 0 orders in the target year AND were created within the last 3 months
+          // AND their creation year matches the target year (to avoid counting very old clients with no orders as "new")
+          if (client.createdAt) {
+            const clientCreatedDate = new Date(client.createdAt);
+            if (clientCreatedDate >= threeMonthsAgo && clientCreatedDate.getFullYear() === targetYear) {
+              nuevos++;
+            }
+          }
+        }
+      });
+
+      setClientesSegmentados({
+        frecuentes,
+        regulares,
+        esporadicos,
+        nuevos
+      });
+
+      const segmentLabels = ['Clientes Frecuentes', 'Clientes Regulares', 'Clientes Esporádicos', 'Clientes Nuevos'];
+      const segmentValues = [frecuentes, regulares, esporadicos, nuevos];
+      const segmentColors = [
+        '#10B981', '#3B82F6', '#F59E0B', '#EF4444'
+      ];
+
+      setCustomerSegmentData({
+        labels: segmentLabels,
+        datasets: [{
+          data: segmentValues,
+          backgroundColor: segmentColors,
+          borderColor: segmentColors.map(color => color + 'CC'),
+          borderWidth: 2,
+        }]
+      });
+
+    } catch (error) {
+      console.error('Error analyzing customer segmentation:', error);
+    }
+  }
+
+
+  // --- useEffect for initial data load and most general metrics/charts ---
+  // This effect runs on component mount and when currentPage or globalSelectedYear (for line charts) changes.
   useEffect(() => {
     setIsLoading(true);
 
-    async function fetchMetrics() {
+    async function fetchAllDashboardData() {
       try {
         const [
           { data: clientsResp },
-          ordersResp,
-          { data: svcTypes },
-          { data: statuses }
+          ordersResp, // This will now fetch ALL orders, no 'showActiveOnly' param
+          activeOrdersResp, // New call specifically for 'active' count
         ] = await Promise.all([
           axios.get(`${API_URL}/client`, {
             params: { filter: 'Activo', limit: 1, offset: 0 }
           }),
-          axios.get(`${API_URL}/order/all`, {
-            params: { showActiveOnly: 'true' }
-          }),
-          axios.get(`${API_URL}/service-type`),
-          axios.get(`${API_URL}/order-status`),
+          axios.get(`${API_URL}/order/all`), // Fetch ALL orders
+          axios.get(`${API_URL}/order/all`, { params: { showActiveOnly: 'true' } }), // Fetch only ACTIVE orders
         ]);
 
-        // 1) Clientes:
+        const fetchedAllOrders = Array.isArray(ordersResp.data) ? ordersResp.data : [];
+        setAllOrdersData(fetchedAllOrders); // Store all orders
+
+        // --- MÉTRICAS GLOBALES (NO AFECTADAS POR FILTRO DE FECHA GLOBAL) ---
         setClientesActivos(clientsResp.total || 0);
+        // Órdenes Activas: Usar la respuesta específica de órdenes activas
+        const activeOrdersCount = Array.isArray(activeOrdersResp.data) ? activeOrdersResp.data.length : 0;
+        setOrdenesActivas(activeOrdersCount);
 
-        // 2) Órdenes:
-        const allOrders = Array.isArray(ordersResp.data)
-          ? ordersResp.data
-          : [];
-        const totalOrders = allOrders.length;
+        setCotPendientes(fetchedAllOrders.filter(
+          o => o.orderStatus?.name?.toLowerCase() === 'Pendiente Cotización'
+        ).length);
 
-        setOrdenesActivas(totalOrders);
-        setOrdenes(allOrders);
-        setTiposServicioCount(svcTypes.length || 0);
-        setEstadosCount(statuses.length || 0);
-
-
-
-
-
-
-        const totalPagesCalc = Math.ceil(allOrders.length / itemsPerPage);
-        setTotalPages(totalPagesCalc);
-
-
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        setOrdenesRecientes(allOrders.slice(startIndex, endIndex));
-
-
-        const cotPend = allOrders.filter(
-          o => o.orderStatus?.name?.toLowerCase().includes('pendiente') ||
-            o.orderStatus?.name?.toLowerCase().includes('cotizacion') ||
-            o.orderStatus?.name?.toLowerCase().includes('cotización')
-        ).length;
-        setCotPendientes(cotPend);
-
-
-        const ordenesConFechas = allOrders.filter(o => {
-          const hasOutDate = o.outDate;
-          const hasCreatedDate = o.createdAt;
-          return hasOutDate && hasCreatedDate;
-        });
-
-
-
-        if (ordenesConFechas.length > 0) {
-          const tiempos = ordenesConFechas.map(o => {
+        // Tiempo Promedio Órdenes (Cálculo sobre TODAS las órdenes con outDate o updatedAt)
+        const ordenesConFechasCompletas = fetchedAllOrders.filter(o => o.outDate && o.createdAt);
+        if (ordenesConFechasCompletas.length > 0) {
+          const tiempos = ordenesConFechasCompletas.map(o => {
             const fechaInicio = new Date(o.createdAt);
             const fechaFin = new Date(o.outDate);
             const diffTime = Math.abs(fechaFin - fechaInicio);
             const diasDiferencia = diffTime / (1000 * 60 * 60 * 24);
-
-
-
             return diasDiferencia;
-          }).filter(tiempo => tiempo >= 0 && tiempo < 365);
+          }).filter(tiempo => tiempo >= 0 && tiempo < 365); // Filter out unreasonable times
 
           const promedioDias = tiempos.length > 0
             ? tiempos.reduce((a, b) => a + b, 0) / tiempos.length
             : 0;
-
-
           setTiempoPromedio(promedioDias > 0 ? promedioDias.toFixed(1) : '0.0');
         } else {
-
-
-
-          const ordenesConActualizacion = allOrders.filter(o => {
+          // Fallback if no outDate, use createdAt to updatedAt difference for any change
+          const ordenesConActualizacion = fetchedAllOrders.filter(o => {
             const hasCreatedDate = o.createdAt;
             const hasUpdatedDate = o.updatedAt;
-            const sonDiferentes = o.createdAt !== o.updatedAt;
-            return hasCreatedDate && hasUpdatedDate && sonDiferentes;
+            // Only consider if updated date is later than created date
+            const isActuallyUpdated = new Date(o.updatedAt) > new Date(o.createdAt);
+            return hasCreatedDate && hasUpdatedDate && isActuallyUpdated;
           });
-
-          
 
           if (ordenesConActualizacion.length > 0) {
             const tiemposActualizacion = ordenesConActualizacion.map(o => {
@@ -230,28 +366,24 @@ const Dashboard = ({ user }) => {
               const fechaFin = new Date(o.updatedAt);
               const diffTime = Math.abs(fechaFin - fechaInicio);
               const diasDiferencia = diffTime / (1000 * 60 * 60 * 24);
-
-             
-
               return diasDiferencia;
-            }).filter(tiempo => tiempo > 0 && tiempo < 365);
+            }).filter(tiempo => tiempo > 0 && tiempo < 365); // Filter out 0-day differences
 
             const promedioActualizacion = tiemposActualizacion.length > 0
               ? tiemposActualizacion.reduce((a, b) => a + b, 0) / tiemposActualizacion.length
               : 0;
 
-            
             setTiempoPromedio(promedioActualizacion > 0 ? promedioActualizacion.toFixed(1) : '0.0');
           } else {
-            
             setTiempoPromedio('N/A');
           }
         }
 
-        // Doughnut (Distribución de órdenes por estado) - CORREGIDO
-        if (allOrders.length > 0) {
+
+        // Doughnut (Distribución de órdenes por estado) - sobre TODAS las órdenes
+        if (fetchedAllOrders.length > 0) {
           const estados = {};
-          allOrders.forEach(o => {
+          fetchedAllOrders.forEach(o => {
             const estado = o.orderStatus?.name || 'Sin estado';
             estados[estado] = (estados[estado] || 0) + 1;
           });
@@ -272,59 +404,85 @@ const Dashboard = ({ user }) => {
               borderWidth: 2,
             }]
           });
+        } else {
+          setDoughnutData({
+            labels: ['Sin Datos'],
+            datasets: [{ data: [1], backgroundColor: ['#d1d5db'], borderColor: ['#9ca3af'], borderWidth: 1 }]
+          });
         }
 
 
-        const currentYear = new Date().getFullYear();
-        const ordersByMonth = Array(12).fill(0);
+        // Órdenes por mes y Ventas por mes (Line charts) - SIEMPRE usan el globalSelectedYear para la tendencia anual
+        const currentYearForLineCharts = globalSelectedYear;
 
-        allOrders.forEach(o => {
+        const allMonthsLabels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        const ordersByMonth = Array(12).fill(0);
+        fetchedAllOrders.forEach(o => {
           if (o.createdAt) {
             const fecha = new Date(o.createdAt);
             const mes = fecha.getMonth();
-            if (mes >= 0 && mes <= 11) {
+            if (fecha.getFullYear() === currentYearForLineCharts && mes >= 0 && mes <= 11) {
               ordersByMonth[mes]++;
             }
           }
         });
 
+        const isCurrentYear = currentYearForLineCharts === today.getFullYear();
+        const dataForPrediction = ordersByMonth.slice(0, today.getMonth() + 1);
+        let predictionData = Array(12).fill(null);
+        let currentYearLabels = allMonthsLabels;
+
+        if (isCurrentYear && dataForPrediction.length > 1) {
+          const { m: mOrders, b: bOrders } = calculateLinearRegression(dataForPrediction);
+          const predictedOrders = Math.max(0, Math.round(mOrders * dataForPrediction.length + bOrders));
+
+          predictionData = Array(today.getMonth() + 1).fill(null);
+          predictionData[today.getMonth()] = ordersByMonth[today.getMonth()];
+          predictionData.push(predictedOrders);
+          currentYearLabels = [...allMonthsLabels.slice(0, today.getMonth() + 1), 'Próx. Mes'];
+        }
+
         setLineChartData({
-          labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
-          datasets: [{
-            label: `Órdenes por mes`,
-            data: ordersByMonth,
-            fill: true,
-            backgroundColor: 'rgba(54, 162, 235, 0.2)',
-            borderColor: 'rgba(54, 162, 235, 1)',
-            borderWidth: 2,
-            tension: 0.4,
-            pointBackgroundColor: 'rgba(54, 162, 235, 1)',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-          }]
+          labels: currentYearLabels,
+          datasets: [
+            {
+              label: `Órdenes por mes (${currentYearForLineCharts})`,
+              data: ordersByMonth.slice(0, isCurrentYear ? today.getMonth() + 1 : 12),
+              fill: true,
+              backgroundColor: 'rgba(54, 162, 235, 0.2)',
+              borderColor: 'rgba(54, 162, 235, 1)',
+              borderWidth: 2,
+              tension: 0.4,
+              pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+            },
+            ...(isCurrentYear && dataForPrediction.length > 1 ? [{
+              label: 'Predicción Órdenes',
+              data: predictionData,
+              fill: false,
+              borderColor: 'rgba(54, 162, 235, 0.7)',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              pointRadius: 5,
+              pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              tension: 0.4,
+              spanGaps: true
+            }] : [])
+          ]
         });
 
-        // Gráfico de ventas por mes
+        // Ventas por mes
         const ventasByMonth = Array(12).fill(0);
-
-        allOrders.forEach(o => {
+        fetchedAllOrders.forEach(o => {
           if (o.createdAt) {
             const fecha = new Date(o.createdAt);
             const mes = fecha.getMonth();
-            if (mes >= 0 && mes <= 11) {
-              // Diferentes formas de obtener el total
-              let total = 0;
-              if (o.total?.totalVenta) {
-                total = Number(o.total.totalVenta);
-              } else if (o.totalAmount) {
-                total = Number(o.totalAmount);
-              } else if (o.amount) {
-                total = Number(o.amount);
-              } else if (o.price) {
-                total = Number(o.price);
-              }
-
+            if (fecha.getFullYear() === currentYearForLineCharts && mes >= 0 && mes <= 11) {
+              let total = Number(o.total?.totalVenta || o.totalAmount || o.amount || o.price || 0);
               if (total > 0) {
                 ventasByMonth[mes] += total;
               }
@@ -332,37 +490,223 @@ const Dashboard = ({ user }) => {
           }
         });
 
+        const salesDataForPrediction = ventasByMonth.slice(0, today.getMonth() + 1);
+        let salesPredictionData = Array(12).fill(null);
+
+        if (isCurrentYear && salesDataForPrediction.length > 1) {
+          const { m: mVentas, b: bVentas } = calculateLinearRegression(salesDataForPrediction);
+          const predictedSales = Math.max(0, Math.round(mVentas * salesDataForPrediction.length + bVentas));
+
+          salesPredictionData = Array(today.getMonth() + 1).fill(null);
+          salesPredictionData[today.getMonth()] = ventasByMonth[today.getMonth()];
+          salesPredictionData.push(predictedSales);
+        }
+
         setVentasChartData({
-          labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
-          datasets: [{
-            label: `Ventas por mes`,
-            data: ventasByMonth,
-            fill: true,
-            backgroundColor: 'rgba(255, 99, 132, 0.2)',
-            borderColor: 'rgba(255, 99, 132, 1)',
-            borderWidth: 2,
-            tension: 0.4,
-            pointBackgroundColor: 'rgba(255, 99, 132, 1)',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-          }]
+          labels: currentYearLabels,
+          datasets: [
+            {
+              label: `Ventas por mes (${currentYearForLineCharts})`,
+              data: ventasByMonth.slice(0, isCurrentYear ? today.getMonth() + 1 : 12),
+              fill: true,
+              backgroundColor: 'rgba(255, 99, 132, 0.2)',
+              borderColor: 'rgba(255, 99, 132, 1)',
+              borderWidth: 2,
+              tension: 0.4,
+              pointBackgroundColor: 'rgba(255, 99, 132, 1)',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              pointRadius: 4,
+            },
+            ...(isCurrentYear && salesDataForPrediction.length > 1 ? [{
+              label: 'Predicción Ventas',
+              data: salesPredictionData,
+              fill: false,
+              borderColor: 'rgba(255, 99, 132, 0.7)',
+              borderWidth: 2,
+              borderDash: [5, 5],
+              pointRadius: 5,
+              pointBackgroundColor: 'rgba(255, 99, 132, 1)',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              tension: 0.4,
+              spanGaps: true
+            }] : [])
+          ]
         });
 
-      } catch (e) {
+        // Customer Segmentation Analysis (always for current year)
+        await analyzeCustomerSegmentation(fetchedAllOrders, today.getFullYear());
 
+        // Órdenes Recientes (Pagination for ALL orders, not filtered by global filters)
+        const totalPagesCalc = Math.ceil(fetchedAllOrders.length / itemsPerPage);
+        setTotalPages(totalPagesCalc);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        setOrdenesRecientes(fetchedAllOrders.slice(startIndex, endIndex));
+
+
+      } catch (e) {
+        console.error('Error fetching metrics:', e);
         setTiempoPromedio('Error');
+        setAllOrdersData([]); // Clear orders on error
+        setOrdenesRecientes([]);
+        setOrdenesActivas(0); // Ensure active orders is 0 on error
       } finally {
         setIsLoading(false);
       }
     }
-    fetchMetrics();
-  }, [currentPage]);
+    // This useEffect depends on currentPage for pagination of all orders,
+    // and globalSelectedYear for the line charts which use it for the full year trend.
+    fetchAllDashboardData();
+  }, [currentPage, globalSelectedYear]);
+
+
+  // --- New useEffect for components specifically affected by global month/year filter ---
+  // This runs when allOrdersData is available OR when globalSelectedYear/Month changes.
+  useEffect(() => {
+    if (allOrdersData.length === 0) {
+      // Clear data for affected components if allOrdersData is not yet loaded or is empty
+      setMostUsedParts([]);
+      setMostUsedSupplies([]);
+      setDailyOrderData({ labels: [], datasets: [] });
+      setContractorOrderCounts([]);
+      setTopAssignedDrivers([]); // Clear top drivers
+      setTotalUniqueAssignedDrivers(0); // Clear total unique drivers
+      return;
+    }
+
+    // Filter orders by the global selected month and year for these specific components
+    const filteredOrdersByGlobalPeriod = filterOrdersByDate(allOrdersData, globalSelectedYear, globalSelectedMonth);
+
+    // Repuestos más usados (para el mes/año seleccionado)
+    const partsCount = {};
+    filteredOrdersByGlobalPeriod.forEach(order => {
+      if (order.sparePartMaterials && Array.isArray(order.sparePartMaterials)) {
+        order.sparePartMaterials.forEach(item => {
+          // 'cantidad' es la cantidad específica de este material en esta orden.
+          // Se suma para obtener el total usado en el período.
+          if (item.sparePartMaterial?.name && item.cantidad) {
+            const unit = item.sparePartMaterial.unit || 'uds.'; // Get unit or default
+            const key = `${item.sparePartMaterial.name} (${unit})`;
+            partsCount[key] = (partsCount[key] || 0) + item.cantidad;
+          }
+        });
+      }
+    });
+    const sortedParts = Object.entries(partsCount)
+      .map(([nameWithUnit, count]) => ({ name: nameWithUnit, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+    setMostUsedParts(sortedParts);
+
+    // Insumos más usados (para el mes/año seleccionado)
+    const suppliesCount = {};
+    filteredOrdersByGlobalPeriod.forEach(order => {
+      if (order.manpowers && Array.isArray(order.manpowers)) {
+        order.manpowers.forEach(manpower => {
+          if (manpower.supplies && Array.isArray(manpower.supplies)) {
+            manpower.supplies.forEach(supplyItem => {
+              // 'cantidad' es la cantidad específica de este insumo en esta mano de obra.
+              // Se suma para obtener el total usado en el período.
+              if (supplyItem.supply?.name && supplyItem.cantidad) {
+                const unit = supplyItem.supply.unit || ''; // Get unit or default
+                const key = `${supplyItem.supply.name} (${unit})`;
+                suppliesCount[key] = (suppliesCount[key] || 0) + supplyItem.cantidad;
+              }
+            });
+          }
+        });
+      }
+    });
+    const sortedSupplies = Object.entries(suppliesCount)
+      .map(([nameWithUnit, count]) => ({ name: nameWithUnit, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+    setMostUsedSupplies(sortedSupplies);
+
+    // Contratistas con Más Órdenes Asignadas (AFECTADO por filtro global)
+    const contractorCounts = {};
+    filteredOrdersByGlobalPeriod.forEach(order => {
+      if (order.manpowers && Array.isArray(order.manpowers)) {
+        order.manpowers.forEach(manpower => {
+          if (manpower.selectedContractor?.firstName && manpower.selectedContractor?.lastName) {
+            const contractorName = `${manpower.selectedContractor.firstName} ${manpower.selectedContractor.lastName}`;
+            contractorCounts[contractorName] = (contractorCounts[contractorName] || 0) + 1;
+          }
+        });
+      }
+    });
+    const sortedContractors = Object.entries(contractorCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+    setContractorOrderCounts(sortedContractors);
+
+    // Top 5 Conductores Asignados (NUEVO - AFECTADO por filtro global)
+    const driverOrderCounts = {};
+    const uniqueDriversInMonth = new Set();
+    filteredOrdersByGlobalPeriod.forEach(order => {
+      if (order.assignedDriver?.firstName && order.assignedDriver?.lastName) {
+        const driverFullName = `${order.assignedDriver.firstName} ${order.assignedDriver.lastName}`;
+        driverOrderCounts[driverFullName] = (driverOrderCounts[driverFullName] || 0) + 1;
+        uniqueDriversInMonth.add(driverFullName); // Also count unique drivers
+      }
+    });
+    const sortedDrivers = Object.entries(driverOrderCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+    setTopAssignedDrivers(sortedDrivers);
+    setTotalUniqueAssignedDrivers(uniqueDriversInMonth.size); // Update total unique drivers
+
+    // Gráfica de Órdenes Iniciadas por Día (AFECTADO por filtro global)
+    const daysInSelectedMonth = new Date(globalSelectedYear, globalSelectedMonth + 1, 0).getDate();
+    const dailyCounts = Array(daysInSelectedMonth).fill(0);
+    const dayLabels = Array.from({ length: daysInSelectedMonth }, (_, i) => i + 1);
+
+    filteredOrdersByGlobalPeriod.forEach(order => {
+      if (order.createdAt) {
+        const orderDate = new Date(order.createdAt);
+        const dayOfMonth = orderDate.getDate();
+        dailyCounts[dayOfMonth - 1]++;
+      }
+    });
+
+    let dataToDisplay = dailyCounts;
+    let labelsToDisplay = dayLabels;
+    // If the selected month/year is the current one, only show data up to the current day
+    if (globalSelectedMonth === today.getMonth() && globalSelectedYear === today.getFullYear()) {
+      dataToDisplay = dailyCounts.slice(0, today.getDate());
+      labelsToDisplay = dayLabels.slice(0, today.getDate());
+    }
+
+    setDailyOrderData({
+      labels: labelsToDisplay,
+      datasets: [
+        {
+          label: `Órdenes por día (${new Date(globalSelectedYear, globalSelectedMonth).toLocaleString('es-ES', { month: 'long', year: 'numeric' })})`,
+          data: dataToDisplay,
+          backgroundColor: 'rgba(75, 192, 192, 0.6)',
+          borderColor: 'rgba(75, 192, 192, 1)',
+          borderWidth: 1,
+        },
+      ],
+    });
+
+  }, [allOrdersData, globalSelectedYear, globalSelectedMonth]); // Dependencies for this specific effect
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
       setCurrentPage(newPage);
     }
+  };
+
+  // Helper para obtener nombres de meses
+  const getMonthName = (monthIndex) => {
+    // Usamos un año fijo (ej. 2000) para asegurar que solo el nombre del mes sea afectado
+    const date = new Date(2000, monthIndex, 1);
+    return date.toLocaleString('es-ES', { month: 'long' });
   };
 
   if (isLoading) {
@@ -373,9 +717,60 @@ const Dashboard = ({ user }) => {
     );
   }
 
+  // Generate year options (e.g., current year - 2 to current year + 1)
+  const currentYear = today.getFullYear();
+  const yearOptions = [];
+  for (let y = currentYear - 2; y <= currentYear + 1; y++) {
+    yearOptions.push(y);
+  }
+
   return (
     <div className="bg-gray-50 p-6">
-      {/* Métricas */}
+      {/* --- FILTROS GLOBALES --- */}
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6 bg-white p-4 rounded-lg shadow">
+        {/* Título del Reporte - Centrado horizontalmente y con margen si es en columna */}
+        <h1 className="text-xl font-bold text-gray-800 text-center md:text-left md:flex-grow">
+          Reporte {globalSelectedYear}
+        </h1>
+
+        {/* Contenedor para los selectores de Año y Mes */}
+        <div className="flex flex-wrap items-center gap-4 justify-center md:justify-end"> {/* 'justify-end' para alinear a la derecha en pantallas grandes */}
+          <div>
+            <label htmlFor="year-select" className="block text-sm font-medium text-gray-700">Año</label>
+            <select
+              id="year-select"
+              value={globalSelectedYear}
+              onChange={(e) => {
+                setGlobalSelectedYear(parseInt(e.target.value));
+              }}
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+            >
+              {yearOptions.map(year => (
+                <option key={year} value={year}>{year}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label htmlFor="month-select" className="block text-sm font-medium text-gray-700">Mes</label>
+            <select
+              id="month-select"
+              value={globalSelectedMonth}
+              onChange={(e) => {
+                setGlobalSelectedMonth(parseInt(e.target.value));
+              }}
+              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
+            >
+              {[...Array(12).keys()].map(monthIndex => (
+                <option key={monthIndex} value={monthIndex}>
+                  {getMonthName(monthIndex)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Métricas Principales (NO AFECTADAS POR EL FILTRO GLOBAL DE MES/AÑO) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-blue-500 text-white rounded-lg shadow p-4">
           <div className="flex justify-between items-center">
@@ -389,7 +784,7 @@ const Dashboard = ({ user }) => {
         <div className="bg-white text-gray-800 rounded-lg shadow p-4">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-lg font-semibold">Cotizaciones Pendientes</h2>
+              <h2 className="text-lg font-semibold">Pendiente Cotización</h2>
               <p className="text-3xl font-bold mt-2">{cotPendientes}</p>
             </div>
             <FaClipboardList className="text-2xl opacity-80" />
@@ -407,7 +802,7 @@ const Dashboard = ({ user }) => {
         <div className="bg-white text-gray-800 rounded-lg shadow p-4">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-lg font-semibold">Tiempo Promedio</h2>
+              <h2 className="text-lg font-semibold">Tiempo Promedio Órdenes</h2>
               <p className="text-3xl font-bold mt-2">
                 {tiempoPromedio === 'N/A' || tiempoPromedio === 'Error'
                   ? tiempoPromedio
@@ -420,13 +815,13 @@ const Dashboard = ({ user }) => {
         </div>
       </div>
 
-      {/* Gráficos */}
+      {/* Gráficos Principales (Órdenes/Ventas, Distribución) - mayormente NO AFECTADOS por filtro global de mes/año (solo el de Año para Line Charts) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Línea o Ventas */}
+        {/* Línea o Ventas con Predicción  */}
         <div className="bg-white rounded-lg shadow">
           <div className="p-4 flex justify-between items-center border-b">
             <h2 className="text-lg font-semibold">
-              {tipoGrafico === 'ordenes' ? 'Órdenes por mes' : 'Ventas por mes'}
+              {tipoGrafico === 'ordenes' ? `Órdenes por Mes y Predicción (${globalSelectedYear})` : `Ventas por Mes y Predicción (${globalSelectedYear})`}
             </h2>
             <FaCog className="cursor-pointer text-gray-500" />
           </div>
@@ -453,10 +848,10 @@ const Dashboard = ({ user }) => {
           </div>
         </div>
 
-        {/* Doughnut */}
+        {/* Distribución de órdenes por estado - sobre todas las órdenes */}
         <div className="bg-white rounded-lg shadow">
           <div className="p-4 flex justify-between items-center border-b">
-            <h2 className="text-lg font-semibold">Distribución de órdenes</h2>
+            <h2 className="text-lg font-semibold">Distribución de Órdenes por Estado (General)</h2>
             <FaCog className="cursor-pointer text-gray-500" />
           </div>
           <div className="p-4">
@@ -467,12 +862,125 @@ const Dashboard = ({ user }) => {
         </div>
       </div>
 
-      {/* Órdenes recientes */}
+      {/* --- Secciones de Métricas Detalladas */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        {/* Repuestos Más Usados */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-lg font-semibold mb-3 flex items-center">
+            <FaTools className="mr-2 text-gray-600" /> Repuestos Más Usados ({getMonthName(globalSelectedMonth)} {globalSelectedYear})
+          </h2>
+          {mostUsedParts.length > 0 ? (
+            <ul className="list-disc pl-5 text-gray-700">
+              {mostUsedParts.map((item, index) => (
+                <li key={index} className="flex justify-between items-center py-1">
+                  <span>{item.name}</span>
+                  <span className="font-semibold text-blue-600">{item.count}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-500 text-sm">No hay datos de repuestos para este periodo.</p>
+          )}
+        </div>
+
+        {/* Insumos Más Usados */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-lg font-semibold mb-3 flex items-center">
+            <FaWrench className="mr-2 text-gray-600" /> Insumos Más Usados ({getMonthName(globalSelectedMonth)} {globalSelectedYear})
+          </h2>
+          {mostUsedSupplies.length > 0 ? (
+            <ul className="list-disc pl-5 text-gray-700">
+              {mostUsedSupplies.map((item, index) => (
+                <li key={index} className="flex justify-between items-center py-1">
+                  <span>{item.name}</span>
+                  <span className="font-semibold text-blue-600">{item.count}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-500 text-sm">No hay datos de insumos para este periodo.</p>
+          )}
+        </div>
+
+        {/* Contratistas con Más Órdenes Asignadas */}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-lg font-semibold mb-3 flex items-center">
+            <FaHardHat className="mr-2 text-gray-600" /> Contratistas con Más Órdenes ({getMonthName(globalSelectedMonth)} {globalSelectedYear})
+          </h2>
+          {contractorOrderCounts.length > 0 ? (
+            <ul className="list-disc pl-5 text-gray-700">
+              {contractorOrderCounts.map((contractor, index) => (
+                <li key={index} className="flex justify-between items-center py-1">
+                  <span>{contractor.name}</span>
+                  <span className="font-semibold text-blue-600">{contractor.count}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-500 text-sm">No hay datos de contratistas para este periodo.</p>
+          )}
+        </div>
+
+        {/* Top 5 Conductores Asignados*/}
+        <div className="bg-white rounded-lg shadow p-4">
+          <h2 className="text-lg font-semibold mb-3 flex items-center">
+            <FaUserTie className="mr-2 text-gray-600" />Conductores Asignados ({getMonthName(globalSelectedMonth)} {globalSelectedYear})
+          </h2>
+          {topAssignedDrivers.length > 0 ? (
+            <ul className="list-disc pl-5 text-gray-700">
+              {topAssignedDrivers.map((driver, index) => (
+                <li key={index} className="flex justify-between items-center py-1">
+                  <span>{driver.name}</span>
+                  <span className="font-semibold text-blue-600">{driver.count}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-gray-500 text-sm">No hay datos de conductores para este periodo.</p>
+          )}
+          <div className="mt-4 border-t pt-3">
+            <p className="text-sm text-gray-600">Total de conductores únicos con órdenes:</p>
+            <p className="text-xl font-bold text-blue-700">{totalUniqueAssignedDrivers}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Nuevas Gráficas a la Par: Órdenes por Día y Segmentación de Clientes */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        {/* Órdenes Iniciadas por Día (AFECTADO por filtro global) */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-4 flex justify-between items-center border-b">
+            <h2 className="text-lg font-semibold">Órdenes Iniciadas por Día ({getMonthName(globalSelectedMonth)} {globalSelectedYear})</h2>
+            <FaCog className="cursor-pointer text-gray-500" />
+          </div>
+          <div className="p-4">
+            <div style={{ height: '300px' }}>
+              <Bar data={dailyOrderData} options={barOptions} />
+            </div>
+          </div>
+        </div>
+
+        {/* Customer Segmentation (SIEMPRE año actual del sistema) */}
+        <div className="bg-white rounded-lg shadow">
+          <div className="p-4 flex justify-between items-center border-b">
+            <h2 className="text-lg font-semibold">Segmentación de Clientes Activos ({today.getFullYear()})</h2>
+            <FaCog className="cursor-pointer text-gray-500" />
+          </div>
+          <div className="p-4">
+            <div style={{ height: '300px' }}>
+              <Doughnut data={customerSegmentData} options={doughnutOptions} />
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* Órdenes recientes (SIEMPRE todas las órdenes, paginadas, sin filtro global de mes/año) */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 flex justify-between items-center border-b">
-          <h2 className="text-lg font-semibold">Órdenes recientes</h2>
+          <h2 className="text-lg font-semibold">Órdenes Recientes (Todas)</h2>
           <span className="text-sm text-gray-500">
-            Total: {ordenes.length} órdenes
+            Total general: {allOrdersData.length} órdenes
           </span>
         </div>
 
@@ -480,7 +988,18 @@ const Dashboard = ({ user }) => {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {/* tus <th>... */}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Número
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Cliente
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Estado
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Fecha Creación
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
@@ -489,14 +1008,13 @@ const Dashboard = ({ user }) => {
                   <td className="px-6 py-4">#{o.orderNumber || o.idOrder}</td>
                   <td className="px-6 py-4">{o.client?.name || 'N/A'}</td>
                   <td className="px-6 py-4">{o.orderStatus?.name || 'N/A'}</td>
-                  <td className="px-6 py-4">{o.serviceTypes?.map(st => st.name).join(', ') || 'N/A'}</td>
                   <td className="px-6 py-4">{new Date(o.createdAt).toLocaleString()}</td>
                 </tr>
               ))}
               {ordenesRecientes.length === 0 && (
                 <tr>
-                  <td colSpan="5" className="px-6 py-4 text-center text-gray-500">
-                    No hay órdenes para mostrar
+                  <td colSpan="4" className="px-6 py-4 text-center text-gray-500">
+                    No hay órdenes para mostrar.
                   </td>
                 </tr>
               )}
