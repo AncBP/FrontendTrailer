@@ -11,7 +11,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
     try {
       const d = new Date(dateString);
       return d.toLocaleDateString("es-ES") + " " +
-             d.toLocaleTimeString("es-ES", { hour:"2-digit", minute:"2-digit" });
+        d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
     } catch { return "Fecha inválida"; }
   };
   const formatDateOnly = dateString => {
@@ -24,7 +24,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
     return `$${n.toLocaleString("es-ES")}`;
   };
 
-  // Helper para convertir URL de imagen a Base64
+
   async function getBase64ImageFromURL(url) {
     const res = await fetch(url);
     const blob = await res.blob();
@@ -43,7 +43,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
     images: { logo: logoBase64 },
     content: [
       // logo centrado
-      { image: 'logo', width: 120, alignment: 'center', margin: [0,0,0,12] },
+      { image: 'logo', width: 120, alignment: 'center', margin: [0, 0, 0, 12] },
 
       { text: "ORDEN DE TRABAJO", style: "header" },
       { text: `N°: ${orden.orderNumber || "Sin número"}`, style: "subheader" },
@@ -56,32 +56,42 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
           {
             width: '50%',
             stack: [
-              { text: [
-                { text: 'N° Orden: ', style: 'label' },
-                { text: orden.orderNumber || '—', style: 'value' }
-              ]},
-              { text: [
-                { text: 'Fecha de Creación: ', style: 'label' },
-                { text: formatDate(orden.createdAt), style: 'value' }
-              ]}
-             
+              {
+                text: [
+                  { text: 'N° Orden: ', style: 'label' },
+                  { text: orden.orderNumber || '—', style: 'value' }
+                ]
+              },
+              {
+                text: [
+                  { text: 'Fecha de Creación: ', style: 'label' },
+                  { text: formatDate(orden.createdAt), style: 'value' }
+                ]
+              }
+
             ]
           },
           {
             width: '50%',
             stack: [
-              { text: [
-                { text: 'Estado: ', style: 'label' },
-                { text: orden.orderStatus?.name || '—', style: 'value' }
-              ]},
-              { text: [
-                { text: 'Fecha de Salida: ', style: 'label' },
-                { text: formatDate(orden.outDate), style: 'value' }
-              ]},
-              { text: [
-                { text: 'Tipos de Servicio: ', style: 'label' },
-                { text: (isValidArray(orden.serviceTypes) ? orden.serviceTypes.map(st=>st.name).join(", ") : '—'), style: 'value' }
-              ]}
+              {
+                text: [
+                  { text: 'Estado: ', style: 'label' },
+                  { text: orden.orderStatus?.name || '—', style: 'value' }
+                ]
+              },
+              {
+                text: [
+                  { text: 'Fecha de Salida: ', style: 'label' },
+                  { text: formatDate(orden.outDate), style: 'value' }
+                ]
+              },
+              {
+                text: [
+                  { text: 'Tipos de Servicio: ', style: 'label' },
+                  { text: (isValidArray(orden.serviceTypes) ? orden.serviceTypes.map(st => st.name).join(", ") : '—'), style: 'value' }
+                ]
+              }
             ]
           }
         ],
@@ -94,12 +104,14 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
       {
         stack: [
           { text: orden.client?.name || '—', style: 'clientName' },
-          { text: [
-            { text: 'Documento: ', style: 'label' },
-            { text: `${orden.client?.document?.documentType?.name || '—'} ${orden.client?.document?.documentNumber || ''}`, style: 'value' }
-          ]}
+          {
+            text: [
+              { text: 'Documento: ', style: 'label' },
+              { text: `${orden.client?.document?.documentType?.name || '—'} ${orden.client?.document?.documentNumber || ''}`, style: 'value' }
+            ]
+          }
         ],
-        margin: [0,0,0,15]
+        margin: [0, 0, 0, 15]
       },
 
       // === VEHÍCULO Y CONDUCTOR ===
@@ -109,37 +121,68 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
           {
             width: '50%',
             stack: [
-              { text: [
-                { text: 'Cabezote: ', style: 'label' },
-                { text: orden.vehicule?.placaCabezote || '—', style: 'value' }
-              ]},
-              { text: [
-                { text: 'Trailer: ', style: 'label' },
-                { text: orden.vehicule?.placaTrailer || '—', style: 'value' }
-              ]},
-              { text: [
-                { text: 'Tipo de Vehículo: ', style: 'label' },
-                { text: orden.vehicule?.vehiculeType?.name || '—', style: 'value' }
-              ]},
-               { text: [
-                { text: 'Km Inicial: ', style: 'label' },
-                { text: String(orden.kilometers ?? '—'), style: 'value' }
-              ]}
+              {
+                text: [
+                  { text: 'Cabezote: ', style: 'label' },
+                  { text: orden.vehicule?.placaCabezote || '—', style: 'value' }
+                ]
+              },
+              {
+                text: [
+                  { text: 'Trailer: ', style: 'label' },
+                  { text: orden.vehicule?.placaTrailer || '—', style: 'value' }
+                ]
+              },
+              {
+                text: [
+                  { text: 'Tipo de Vehículo: ', style: 'label' },
+                  { text: orden.vehicule?.vehiculeType?.name || '—', style: 'value' }
+                ]
+              },
+              {
+                text: [
+                  { text: 'Km Inicial: ', style: 'label' },
+                  { text: String(orden.kilometers ?? '—'), style: 'value' }
+                ]
+              }
             ]
           },
           {
             width: '50%',
             stack: [
-              { text: [
-                { text: 'Conductor: ', style: 'label' },
-                { text: orden.assignedDriver
-                  ? `${orden.assignedDriver.firstName} ${orden.assignedDriver.lastName}`
-                  : '—', style: 'value' }
-              ]},
-              { text: [
-                { text: 'Teléfono: ', style: 'label' },
-                { text: orden.assignedDriver?.phoneNumber || '—', style: 'value' }
-              ]}
+              {
+                text: [
+                  { text: 'Conductor: ', style: 'label' },
+                  {
+                    text: orden.assignedDriver
+                      ? `${orden.assignedDriver.firstName} ${orden.assignedDriver.lastName}`
+                      : '—', style: 'value'
+                  }
+                ]
+              },
+              {
+                text: [
+
+                  {
+                    text:
+                      (orden.assignedDriver?.document?.documentType?.name ||
+                        '') + ': ',
+                    style: 'label'
+                  },
+
+
+                  {
+                    text: orden.assignedDriver?.document?.documentNumber || '—',
+                    style: 'value'
+                  }
+                ]
+              },
+              {
+                text: [
+                  { text: 'Teléfono: ', style: 'label' },
+                  { text: orden.assignedDriver?.phoneNumber || '—', style: 'value' }
+                ]
+              }
             ]
           }
         ],
@@ -149,7 +192,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
 
       // === REPUESTOS Y MATERIALES ===
       ...(isValidArray(orden.sparePartMaterials) ? [
-        { text: "REPUESTOS Y MATERIALES", style: "section" },
+        { text: "REPUESTOS", style: "section" },
         {
           table: {
             headerRows: 1,
@@ -157,7 +200,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
             body: [
               [
                 { text: 'Material', style: 'tableHeader' },
-                
+
                 { text: 'Cant.', style: 'tableHeader' },
                 { text: 'Proveedor', style: 'tableHeader' },
                 { text: 'Costo U.', style: 'tableHeader' },
@@ -193,7 +236,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
               return '#9E9E9E';
             }
           },
-          margin: [0,0,0,15]
+          margin: [0, 0, 0, 15]
         }
       ] : []),
 
@@ -202,7 +245,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
         { text: "MANO DE OBRA E INSUMOS", style: "section" },
         ...orden.manpowers.map((mp, index) => {
           const elements = [];
-          
+
           // Título de la mano de obra con número
           elements.push({
             text: `${index + 1}. MANO DE OBRA`,
@@ -213,7 +256,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
           // Información principal de mano de obra en formato de bloques
           elements.push({
             table: {
-              widths: [85,25, 65, 50, 50, 50, 50],
+              widths: [85, 25, 65, 50, 50, 50, 50],
               body: [
                 [
                   { text: 'Descripción', style: 'manpowerHeader' },
@@ -227,9 +270,11 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                 [
                   { text: `${mp.manpower?.name || '—'}${mp.useDetail ? '\n' + mp.useDetail : ''}`, style: 'manpowerCell' },
                   { text: String(mp.cantidad || 0), style: 'manpowerCell', alignment: 'center' },
-                  { text: mp.selectedContractor
-                    ? `${mp.selectedContractor.firstName} ${mp.selectedContractor.lastName}`
-                    : '—', style: 'manpowerCell' },
+                  {
+                    text: mp.selectedContractor
+                      ? `${mp.selectedContractor.firstName} ${mp.selectedContractor.lastName}`
+                      : '—', style: 'manpowerCell'
+                  },
                   { text: formatCurrency(mp.unitaryCost), style: 'manpowerCell', alignment: 'right' },
                   { text: formatCurrency(mp.costoTotal), style: 'manpowerCell', alignment: 'right' },
                   { text: formatCurrency(mp.ventaUnitaria), style: 'manpowerCell', alignment: 'right' },
@@ -276,7 +321,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                     { text: 'Proveedor', style: 'suppliesHeader' },
                     { text: 'Costo U.', style: 'suppliesHeader' },
                     { text: 'Costo T.', style: 'suppliesHeader' }
-                   
+
                   ],
                   ...mp.supplies.map(s => [
                     { text: s.supply?.name || '—', style: 'suppliesCell' },
@@ -285,7 +330,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                     { text: s.selectedProvider?.name || '—', style: 'suppliesCell' },
                     { text: formatCurrency(s.unitaryCost), style: 'suppliesCell', alignment: 'right' },
                     { text: formatCurrency(s.costoTotal), style: 'suppliesCell', alignment: 'right' }
-                  
+
                   ])
                 ]
               },
@@ -309,7 +354,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
               margin: [15, 0, 0, 15]
             });
           } else {
-            elements.push({ text: '', margin: [0, 0, 0, 15] }); 
+            elements.push({ text: '', margin: [0, 0, 0, 15] });
           }
 
           return elements;
@@ -321,20 +366,28 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
         { text: "INFORMACIÓN DE COTIZACIÓN", style: "section" },
         {
           stack: [
-            { text: [
-              { text: 'Número de Cotización: ', style: 'label' },
-              { text: orden.pricings[0].pricingNumber || 'Sin número', style: 'value' }
-            ]},
-            { text: [
-              { text: 'Fecha de Cotización: ', style: 'label' },
-              { text: formatDateOnly(orden.pricings[0].pricingDate), style: 'value' }
-            ]},
-            { text: [
-              { text: 'Cotizado por: ', style: 'label' },
-              { text: orden.pricings[0].pricedBy
-                ? `${orden.pricings[0].pricedBy.firstName} ${orden.pricings[0].pricedBy.lastName}`
-                : 'Sin especificar', style: 'value' }
-            ]}
+            {
+              text: [
+                { text: 'Número de Cotización: ', style: 'label' },
+                { text: orden.pricings[0].pricingNumber || 'Sin número', style: 'value' }
+              ]
+            },
+            {
+              text: [
+                { text: 'Fecha de Cotización: ', style: 'label' },
+                { text: formatDateOnly(orden.pricings[0].pricingDate), style: 'value' }
+              ]
+            },
+            {
+              text: [
+                { text: 'Cotizado por: ', style: 'label' },
+                {
+                  text: orden.pricings[0].pricedBy
+                    ? `${orden.pricings[0].pricedBy.firstName} ${orden.pricings[0].pricedBy.lastName}`
+                    : 'Sin especificar', style: 'value'
+                }
+              ]
+            }
           ],
           margin: [0, 0, 0, 15]
         }
@@ -345,24 +398,34 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
         { text: "INFORMACIÓN DE FACTURACIÓN", style: "section" },
         {
           stack: [
-            { text: [
-              { text: 'Número de Factura: ', style: 'label' },
-              { text: orden.billings[0].billingNumber || 'Sin número', style: 'value' }
-            ]},
-            { text: [
-              { text: 'Fecha de Facturación: ', style: 'label' },
-              { text: formatDateOnly(orden.billings[0].billingDate), style: 'value' }
-            ]},
-            { text: [
-              { text: 'Facturado por: ', style: 'label' },
-              { text: orden.billings[0].billedBy
-                ? `${orden.billings[0].billedBy.firstName} ${orden.billings[0].billedBy.lastName}`
-                : 'Sin especificar', style: 'value' }
-            ]},
-            { text: [
-              { text: 'Número de Acta: ', style: 'label' },
-              { text: orden.billings[0].actNumber || 'Sin número de acta', style: 'value' }
-            ]}
+            {
+              text: [
+                { text: 'Número de Factura: ', style: 'label' },
+                { text: orden.billings[0].billingNumber || 'Sin número', style: 'value' }
+              ]
+            },
+            {
+              text: [
+                { text: 'Fecha de Facturación: ', style: 'label' },
+                { text: formatDateOnly(orden.billings[0].billingDate), style: 'value' }
+              ]
+            },
+            {
+              text: [
+                { text: 'Facturado por: ', style: 'label' },
+                {
+                  text: orden.billings[0].billedBy
+                    ? `${orden.billings[0].billedBy.firstName} ${orden.billings[0].billedBy.lastName}`
+                    : 'Sin especificar', style: 'value'
+                }
+              ]
+            },
+            {
+              text: [
+                { text: 'Número de Acta: ', style: 'label' },
+                { text: orden.billings[0].actNumber || 'Sin número de acta', style: 'value' }
+              ]
+            }
           ],
           margin: [0, 0, 0, 15]
         }
@@ -439,13 +502,13 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
     ],
     styles: {
       header: {
-        fontSize: 18, bold: true, color: '#2980b9', margin: [0,0,0,8], alignment: 'center'
+        fontSize: 18, bold: true, color: '#2980b9', margin: [0, 0, 0, 8], alignment: 'center'
       },
       subheader: {
-        fontSize: 14, color: '#34495e', margin: [0,0,0,6], alignment: 'center'
+        fontSize: 14, color: '#34495e', margin: [0, 0, 0, 6], alignment: 'center'
       },
       section: {
-        fontSize: 12, bold: true, color: '#2980b9', margin: [0,15,0,8], 
+        fontSize: 12, bold: true, color: '#2980b9', margin: [0, 15, 0, 8],
         decoration: 'underline', decorationStyle: 'solid', decorationColor: '#2980b9'
       },
       label: {
@@ -455,9 +518,9 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
         fontSize: 9, color: '#34495e'
       },
       clientName: {
-        fontSize: 11, bold: true, color: '#2C3E50', margin: [0,0,0,3]
+        fontSize: 11, bold: true, color: '#2C3E50', margin: [0, 0, 0, 3]
       },
-      
+
       // Estilos para tablas generales
       tableHeader: {
         bold: true, fontSize: 9, color: '#455A64', fillColor: '#E8EAED'
@@ -465,10 +528,10 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
       tableCell: {
         fontSize: 9, color: '#2C3E50'
       },
-      
+
       // Estilos específicos para mano de obra
       manpowerTitle: {
-        fontSize: 11, bold: true, color: '#607D8B', 
+        fontSize: 11, bold: true, color: '#607D8B',
         decoration: 'underline', decorationStyle: 'solid', decorationColor: '#607D8B'
       },
       manpowerHeader: {
@@ -477,7 +540,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
       manpowerCell: {
         fontSize: 9, color: '#2C3E50', bold: true
       },
-      
+
       // Estilos específicos para insumos
       suppliesTitle: {
         fontSize: 10, bold: true, color: '#78909C', italics: true
@@ -488,7 +551,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
       suppliesCell: {
         fontSize: 8, color: '#37474F', italics: true
       },
-      
+
       // Estilos para resumen financiero
       financialHeader: {
         bold: true, fontSize: 10, color: '#2C3E50'
@@ -514,5 +577,5 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
   };
 
   pdfMakeModule.default.createPdf(docDefinition)
-    .download(`Orden_${orden.orderNumber || "SinNumero"}_${new Date().toISOString().slice(0,10)}.pdf`);
+    .download(`Orden_${orden.orderNumber || "SinNumero"}_${new Date().toISOString().slice(0, 10)}.pdf`);
 }

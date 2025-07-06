@@ -67,20 +67,75 @@ const Proveedores = () => {
     setModo('agregar');
   };
 
-  // Form handlers (igual que antes)
-  const handleChange = e => {
+  const ALLOWED_DOC_NAMES = [
+    'Cédula de Ciudadanía',
+    'Cédula de Extranjería',
+    'Permiso Especial de Permanencia',
+    'Número de Identificación Tributaria',
+  ];
+
+  const MAX_DIGITS_BY_DOC = {
+    'Cédula de Ciudadanía': 10,
+    'Cédula de Extranjería': 10,
+    'Permiso Especial de Permanencia': 10,
+    'Número de Identificación Tributaria': 9,
+  };
+
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/;
+
+
+  const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'documentTypeId' || name === 'documentNumber') {
-      setNuevoProveedor(prev => ({
-        ...prev,
-        document: { ...prev.document, [name]: value }
-      }));
-    } else {
-      setNuevoProveedor(prev => ({ ...prev, [name]: value }));
+
+
+    if (name === 'phoneNumber') {
+      const clean = value.replace(/\D/g, '').slice(0, 10);
+      setNuevoProveedor((p) => ({ ...p, phoneNumber: clean }));
+      return;
     }
+    if (name === 'name') {
+
+      const soloLetras = value.replace(/[^A-Za-zÁÉÍÓÚÜáéíóúüÑñ\s]/g, '');
+      setNuevoProveedor((p) => ({ ...p, name: soloLetras }));
+      return;
+    }
+
+
+    if (name === 'documentNumber') {
+
+      const typeId = nuevoProveedor.document.documentTypeId;
+
+      const typeName =
+        documentTypes.find((t) => t.idDocumentType === typeId)?.name || '';
+
+      const maxLen = MAX_DIGITS_BY_DOC[typeName] || 30;
+      const clean = value.replace(/\D/g, '').slice(0, maxLen);
+
+      setNuevoProveedor((p) => ({
+        ...p,
+        document: { ...p.document, documentNumber: clean },
+      }));
+      return;
+    }
+
+
+    if (name === 'documentTypeId') {
+      setNuevoProveedor((p) => ({
+        ...p,
+        document: { ...p.document, documentTypeId: value, documentNumber: '' },
+      }));
+      return;
+    }
+
+
+    setNuevoProveedor((p) => ({ ...p, [name]: value }));
   };
 
   const handleGuardar = async () => {
+    if (!EMAIL_REGEX.test(nuevoProveedor.email)) {
+      toast.error('Ingrese un correo electrónico válido (ejemplo@dominio.com)');
+      return;
+    }
     try {
       const payload = {
         name: nuevoProveedor.name,
@@ -104,21 +159,21 @@ const Proveedores = () => {
     }
   };
 
- const handleEditar = proveedor => {
-  setNuevoProveedor({
-    idProvider: proveedor.idProvider,
-    name: proveedor.name,
-    email: proveedor.email,
-    phoneNumber: proveedor.phoneNumber,
-    document: {
-      
-      documentTypeId: proveedor.document?.documentType?.idDocumentType || '',
-      documentNumber: proveedor.document?.documentNumber || ''
-    }
-  });
-  setModo('editar');
-  setMostrarModal(true);
-};
+  const handleEditar = proveedor => {
+    setNuevoProveedor({
+      idProvider: proveedor.idProvider,
+      name: proveedor.name,
+      email: proveedor.email,
+      phoneNumber: proveedor.phoneNumber,
+      document: {
+
+        documentTypeId: proveedor.document?.documentType?.idDocumentType || '',
+        documentNumber: proveedor.document?.documentNumber || ''
+      }
+    });
+    setModo('editar');
+    setMostrarModal(true);
+  };
 
   const handleEliminar = async id => {
     if (!window.confirm('¿Eliminar este proveedor?')) return;
@@ -175,7 +230,8 @@ const Proveedores = () => {
             <table className="w-full">
               <thead>
                 <tr className="text-left">
-                  <th className="py-2 text-sm font-medium text-gray-600">NIT</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Tipo de documento</th>
+                  <th className="py-2 text-sm font-medium text-gray-600">Numero de documento</th>
                   <th className="py-2 text-sm font-medium text-gray-600">Nombre</th>
                   <th className="py-2 text-sm font-medium text-gray-600">Correo</th>
                   <th className="py-2 text-sm font-medium text-gray-600">Teléfono</th>
@@ -185,7 +241,8 @@ const Proveedores = () => {
               <tbody>
                 {proveedores.length > 0 ? proveedores.map(p => (
                   <tr key={p.idProvider} className="border-t border-gray-100">
-                    <td className="py-3 text-sm">{p.document.documentNumber}</td>
+                    <td className="py-3 text-sm">{p.document?.documentType?.abbreviation || '—'}</td>
+                    <td className="py-3 text-sm">{p.document?.documentNumber || '—'}</td>
                     <td className="py-3 text-sm ">{p.name}</td>
                     <td className="py-3 text-sm ">{p.email}</td>
                     <td className="py-3 text-sm ">{p.phoneNumber}</td>
@@ -249,10 +306,10 @@ const Proveedores = () => {
                   >
                     <option value="">Selecciona un tipo</option>
                     {documentTypes
-                      .filter(dt => dt.abbreviation === 'NIT')
-                      .map(dt => (
-                        <option key={dt.idDocumentType} value={dt.idDocumentType}>
-                          {dt.name}
+                      .filter((t) => ALLOWED_DOC_NAMES.includes(t.name))
+                      .map((tipo) => (
+                        <option key={tipo.idDocumentType} value={tipo.idDocumentType}>
+                          {tipo.name === 'Número de Identificación Tributaria' ? 'NIT' : tipo.name}
                         </option>
                       ))}
                   </select>
@@ -262,19 +319,22 @@ const Proveedores = () => {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Número de identificación *</label>
                   <input
                     value={nuevoProveedor.document?.documentNumber ?? ''}
-                    onChange={(e) =>
-                      setNuevoProveedor((prev) => ({
-                        ...prev,
-                        document: {
-                          ...prev.document,
-                          documentNumber: e.target.value,
-                        },
-                      }))
-                    }
+                    onChange={handleChange}
                     name="documentNumber"
                     required
+                    inputMode="numeric"
+                    pattern="\d*"
+
+                    maxLength={
+                      MAX_DIGITS_BY_DOC[
+                      documentTypes.find(
+                        (t) => t.idDocumentType === nuevoProveedor.document.documentTypeId
+                      )?.name
+                      ] || 30
+                    }
                     type="text"
-                    className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-300 rounded-md p-2
+               focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
 
@@ -286,6 +346,8 @@ const Proveedores = () => {
                   onChange={handleChange}
                   name="name"
                   required
+                  pattern="[A-Za-zÁÉÍÓÚÜáéíóúüÑñ\s]+"
+                  title="Solo se permiten letras"
                   type="text"
                   className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -298,6 +360,8 @@ const Proveedores = () => {
                   onChange={handleChange}
                   name="email"
                   required
+                  pattern="^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$"
+                  title="Ejemplo: usuario@dominio.com"
                   type="email"
                   className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -311,6 +375,15 @@ const Proveedores = () => {
                   name="phoneNumber"
                   required
                   type="tel"
+                  maxLength={10}
+                  inputMode="numeric"
+                  pattern="\d{10}"
+                  onKeyDown={(e) => {
+                    if (
+                      !/^\d$/.test(e.key) &&
+                      !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)
+                    ) { e.preventDefault(); }
+                  }}
                   className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

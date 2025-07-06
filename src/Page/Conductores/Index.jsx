@@ -29,11 +29,10 @@ const Conductores = () => {
   const [nuevoConductor, setNuevoConductor] = useState(conductorVacio);
 
   useEffect(() => {
-    axios.get('https://api.trailers.trailersdelcaribe.net/api/document-type')
+    axios.get(`https://api.trailers.trailersdelcaribe.net/api/document-type`)
       .then(res => setDocumentTypes(res.data))
-      .catch(err => console.error('Error cargando tipos:', err));
+      .catch(err => console.error(err));
   }, []);
-
 
   useEffect(() => {
     fetchConductores();
@@ -80,17 +79,74 @@ const Conductores = () => {
   };
 
 
-  const handleChange = e => {
+  const ALLOWED_DOC_NAMES = [
+    'Cédula de Ciudadanía',
+    'Cédula de Extranjería',
+    'Permiso Especial de Permanencia',
+    'Número de Identificación Tributaria',
+  ];
+  const SOLO_LETRAS_REGEX = /[^A-Za-zÁÉÍÓÚÜáéíóúüÑñ\s]/g;
+
+  const MAX_DIGITS_BY_DOC = {
+    'Cédula de Ciudadanía': 10,
+    'Cédula de Extranjería': 10,
+    'Permiso Especial de Permanencia': 10,
+    'Número de Identificación Tributaria': 9,
+  };
+
+  const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'number' || name === 'documentType') {
-      setNuevoConductor(prev => ({
+
+
+    if (name === 'telefono') {
+      const sanitized = value.replace(/\D/g, '').slice(0, 10);
+      setNuevoConductor((prev) => ({ ...prev, telefono: sanitized }));
+      return;
+    }
+    if (name === 'nombre' || name === 'apellido') {
+      const limpio = value.replace(SOLO_LETRAS_REGEX, '');
+      setNuevoConductor((prev) => ({ ...prev, [name]: limpio }));
+      return;
+    }
+
+
+    if (name === 'number') {
+      const selectedTypeId = nuevoConductor.document.documentType;
+      const selectedTypeName =
+        documentTypes.find((t) => t.idDocumentType === selectedTypeId)?.name || '';
+
+      const maxLen = MAX_DIGITS_BY_DOC[selectedTypeName] || 30;
+      const sanitized = value.replace(/\D/g, '').slice(0, maxLen);
+
+      setNuevoConductor((prev) => ({
         ...prev,
-        document: { ...prev.document, [name]: value }
+        document: { ...prev.document, number: sanitized },
+      }));
+      return;
+    }
+
+
+    if (name === 'documentType') {
+      setNuevoConductor((prev) => ({
+        ...prev,
+        document: { ...prev.document, documentType: value },
       }));
     } else {
-      setNuevoConductor(prev => ({ ...prev, [name]: value }));
+      setNuevoConductor((prev) => ({ ...prev, [name]: value }));
     }
   };
+
+  const handleActivar = async (id) => {
+    try {
+      await axios.patch(`${API_URL}/${id}`, { active: true });
+      toast.success('Conductor reactivado');
+      fetchConductores();
+    } catch (err) {
+      console.error(err);
+      toast.error('No se pudo reactivar el conductor');
+    }
+  };
+
 
   const handleGuardar = async () => {
     try {
@@ -117,9 +173,22 @@ const Conductores = () => {
       cerrarModal();
       fetchConductores();
     } catch (err) {
+      const backendMsg = err.response?.data?.message || '';
+
+
+      if (
+        backendMsg.toLowerCase().includes('ya existe') &&
+        backendMsg.toLowerCase().includes('documento')
+      ) {
+        toast.error('Ya existe un conductor con ese número de documento');
+      } else {
+
+        toast.error('Error al guardar conductor');
+      }
+
       console.error(err);
-      toast.error('Error al guardar conductor');
     }
+
   };
   const handleEditar = c => {
     setModo('editar');
@@ -142,13 +211,14 @@ const Conductores = () => {
     if (!window.confirm('¿Seguro que quieres eliminar este conductor?')) return;
     try {
       await axios.delete(`${API_URL}/${id}`);
-      toast.success('Conductor eliminado');
-      fetchConductores();
+      toast.success('Conductor eliminado correctamente');
+      fetchClientes();
     } catch (err) {
       console.error(err);
-      toast.error('Error al eliminar conductor');
+      toast.error('No se pudo eliminar el conductor');
     }
   };
+
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <h1 className="text-2xl font-bold text-gray-700 mb-6">Conductores</h1>
@@ -215,7 +285,7 @@ const Conductores = () => {
               </thead>
               <tbody>
                 {conductores.length > 0 ? conductores.map(con => {
-                  const esConductorActivo = con.active === true; // o !!con.active
+                  const esConductorActivo = con.active === true;
 
                   return (
                     <tr key={con.idDriver} className="border-t border-gray-100">
@@ -225,41 +295,59 @@ const Conductores = () => {
                       <td className="py-3 text-sm">{con.lastName || '—'}</td>
                       <td className="py-3 text-sm">{con.phoneNumber || '—'}</td>
                       <td className="py-3 flex gap-2 justify-end">
-                        <button
-                          onClick={esConductorActivo ? () => handleEditar(con) : undefined}
-                          disabled={!esConductorActivo}
-                          className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esConductorActivo
-                              ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 cursor-pointer'
-                              : 'bg-gray-100 cursor-not-allowed opacity-50'
-                            }`}
-                          title={esConductorActivo ? 'Editar conductor' : 'Conductor desactivado'}
-                        >
-                          {/* icono editar */}
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5
-                   m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                          </svg>
-                        </button>
+                        {esConductorActivo ? (
 
-                        <button
-                          onClick={esConductorActivo ? () => handleEliminar(con.idDriver) : undefined}
-                          disabled={!esConductorActivo}
-                          className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esConductorActivo
-                              ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-red-300 cursor-pointer'
-                              : 'bg-gray-100 cursor-not-allowed opacity-50'
-                            }`}
-                          title={esConductorActivo ? 'Eliminar conductor' : 'Conductor desactivado'}
-                        >
-                          {/* icono eliminar */}
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862
-                   a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6
-                   m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3
-                   M4 7h16"/>
-                          </svg>
-                        </button>
+                          <>
+
+                            <button
+                              onClick={() => handleEditar(con)}
+                              className="p-1 rounded-full bg-white shadow-md hover:shadow-xl
+                             transform hover:-translate-y-0.5 focus:outline-none
+                             focus:ring-2 focus:ring-offset-2 focus:ring-blue-300"
+                              title="Editar cliente"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5
+                             m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            </button>
+
+
+                            <button
+                              onClick={() => handleEliminar(con.idDriver)}
+                              className="p-1 rounded-full bg-white shadow-md hover:shadow-xl
+                             transform hover:-translate-y-0.5 focus:outline-none
+                             focus:ring-2 focus:ring-offset-2 focus:ring-red-300"
+                              title="Eliminar cliente"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862
+                             a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6
+                             m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3
+                             M4 7h16" />
+                              </svg>
+                            </button>
+                          </>
+                        ) : (
+
+                          <button
+                            onClick={() => handleActivar(con.idDriver)}
+                            className="p-1 rounded-full bg-green-600 hover:bg-green-700 text-white
+                           focus:outline-none focus:ring-2 focus:ring-offset-2
+                           focus:ring-green-300"
+                            title="Activar cliente"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4"
+                              fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                d="M5 13l4 4L19 7" />
+                            </svg>
+                          </button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -318,10 +406,11 @@ const Conductores = () => {
                 <div className="w-1/2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nombres *</label>
                   <input
+                    name="nombre"
                     value={nuevoConductor.nombre}
                     onChange={handleChange}
-                    type="text"
-                    name="nombre"
+                    pattern="[A-Za-zÁÉÍÓÚÜáéíóúüÑñ\s]+"
+                    title="Solo se permiten letras"
                     required
                     className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
@@ -332,6 +421,8 @@ const Conductores = () => {
                     value={nuevoConductor.apellido}
                     onChange={handleChange}
                     type="text"
+                    pattern="[A-Za-zÁÉÍÓÚÜáéíóúüÑñ\s]+"
+                    title="Solo se permiten letras"
                     name="apellido"
                     required
                     className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -349,11 +440,13 @@ const Conductores = () => {
                     className="w-full border border-gray-300 rounded-md p-2"
                   >
                     <option value="">Selecciona un tipo</option>
-                    {documentTypes.map((tipo) => (
-                      <option key={tipo.idDocumentType} value={tipo.idDocumentType}>
-                        {tipo.name}
-                      </option>
-                    ))}
+                    {documentTypes
+                      .filter((t) => ALLOWED_DOC_NAMES.includes(t.name))
+                      .map((tipo) => (
+                        <option key={tipo.idDocumentType} value={tipo.idDocumentType}>
+                          {tipo.name === 'Número de Identificación Tributaria' ? 'NIT' : tipo.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
                 <div className="w-2/3">
@@ -364,6 +457,8 @@ const Conductores = () => {
                     onChange={handleChange}
                     name="number"
                     required
+                    inputMode="numeric"
+                    pattern="\d*"
                     type="text"
                     className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
                 </div>
@@ -378,6 +473,15 @@ const Conductores = () => {
                   name="telefono"
                   required
                   type="tel"
+                  maxLength={10}
+                  inputMode="numeric"
+                  pattern="\d{10}"
+                  onKeyDown={(e) => {
+                    if (
+                      !/^\d$/.test(e.key) &&
+                      !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)
+                    ) { e.preventDefault(); }
+                  }}
                   className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
 

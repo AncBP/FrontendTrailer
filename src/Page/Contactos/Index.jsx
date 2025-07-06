@@ -65,9 +65,32 @@ const Contactos = () => {
     }
   };
 
-  const handleChange = e => {
+  const handleActivar = async (id) => {
+    try {
+      await axios.patch(`${API_URL}/${id}`, { active: true });
+      toast.success('Contacto reactivado');
+      cargarContactos();
+    } catch (err) {
+      console.error(err);
+      toast.error('No se pudo reactivar el contacto');
+    }
+  };
+
+
+  const PHONE_MAX = 10;
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/;
+
+  const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setNuevoContacto(prev => ({
+
+
+    if (name === 'phoneNumber') {
+      const sanitized = value.replace(/\D/g, '').slice(0, PHONE_MAX);
+      setNuevoContacto((prev) => ({ ...prev, phoneNumber: sanitized }));
+      return;
+    }
+
+    setNuevoContacto((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }));
@@ -84,6 +107,15 @@ const Contactos = () => {
   };
 
   const handleGuardar = async () => {
+
+    if (!EMAIL_REGEX.test(nuevoContacto.email)) {
+      toast.error('Ingrese un correo electrónico válido (ejemplo@dominio.com)');
+      return;
+    }
+    if (nuevoContacto.phoneNumber.length !== PHONE_MAX) {
+      toast.error('El número de teléfono debe tener 10 dígitos');
+      return;
+    }
     try {
       const payload = {
         name: nuevoContacto.name,
@@ -122,17 +154,17 @@ const Contactos = () => {
     setMostrarModal(true);
   };
 
-  const handleEliminar = async id => {
-    if (!window.confirm('¿Seguro que quieres eliminar este contacto?')) return;
-    try {
-      await axios.delete(`${API_URL}/${id}`);
-      toast.success('Contacto eliminado correctamente');
-      cargarContactos();
-    } catch (err) {
-      const mensaje = err.response?.data?.message || 'Error al eliminar contacto';
-      toast.error(mensaje);
-    }
-  };
+  const handleEliminar = async (id) => {
+  if (!window.confirm('¿Seguro que quieres desactivar este contacto?')) return;
+  try {
+    await axios.patch(`${API_URL}/${id}`, { active: false });  
+    toast.success('Contacto desactivado');
+    cargarContactos();
+  } catch (err) {
+    const msg = err.response?.data?.message || 'Error al desactivar';
+    toast.error(msg);
+  }
+};
 
   const handleBusquedaChange = e => {
     setBusqueda(e.target.value);
@@ -208,7 +240,7 @@ const Contactos = () => {
               <tbody>
                 {contactos.length > 0 ? (
                   contactos.map(contacto => {
-                    const esContactoActivo = contacto.active === true; // o simplemente !!contacto.active
+                    const esContactoActivo = contacto.active === true;
 
                     return (
                       <tr key={contacto.idContact} className="border-t border-gray-100">
@@ -217,41 +249,56 @@ const Contactos = () => {
                         <td className="py-3 text-sm">{contacto.phoneNumber}</td>
                         <td className="py-3 text-sm">{contacto.client?.name || 'Sin cliente'}</td>
                         <td className="py-3 flex gap-2 justify-end">
-                          <button
-                            onClick={esContactoActivo ? () => handleEditar(contacto) : undefined}
-                            disabled={!esContactoActivo}
-                            className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esContactoActivo
-                                ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 cursor-pointer'
-                                : 'bg-gray-100 cursor-not-allowed opacity-50'
-                              }`}
-                            title={esContactoActivo ? 'Editar contacto' : 'Contacto desactivado'}
-                          >
-                            {/* icono editar */}
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5
-                     m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                            </svg>
-                          </button>
+                          {esContactoActivo ? (
+                            /* -------- CONTACTO ACTIVO: Editar + Eliminar -------- */
+                            <>
+                              {/* Editar */}
+                              <button
+                                onClick={() => handleEditar(contacto)}
+                                className="p-1 rounded-full bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5
+                   focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300"
+                                title="Editar contacto"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none"
+                                  viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5
+                   m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                </svg>
+                              </button>
 
-                          <button
-                            onClick={esContactoActivo ? () => handleEliminar(contacto.idContact) : undefined}
-                            disabled={!esContactoActivo}
-                            className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esContactoActivo
-                                ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-red-300 cursor-pointer'
-                                : 'bg-gray-100 cursor-not-allowed opacity-50'
-                              }`}
-                            title={esContactoActivo ? 'Eliminar contacto' : 'Contacto desactivado'}
-                          >
-                            {/* icono eliminar */}
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862
-                     a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6
-                     m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3
-                     M4 7h16"/>
-                            </svg>
-                          </button>
+                              {/* Eliminar (desactivar) */}
+                              <button
+                                onClick={() => handleEliminar(contacto.idContact)}
+                                className="p-1 rounded-full bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5
+                   focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-300"
+                                title="Eliminar contacto"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none"
+                                  viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862
+                   a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6
+                   m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3
+                   M4 7h16"/>
+                                </svg>
+                              </button>
+                            </>
+                          ) : (
+                            /* -------- CONTACTO INACTIVO: botón Activar -------- */
+                            <button
+                              onClick={() => handleActivar(contacto.idContact)}
+                              className="p-1 rounded-full bg-green-600 hover:bg-green-700 text-white
+                 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-300"
+                              title="Activar contacto"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                  d="M5 13l4 4L19 7" />
+                              </svg>
+                            </button>
+                          )}
                         </td>
                       </tr>
                     );
@@ -328,6 +375,9 @@ const Contactos = () => {
                     onChange={handleChange}
                     name="email"
                     type="email"
+                    required
+                    pattern="^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$"
+                    title="Ejemplo: usuario@dominio.com"
                     className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -342,6 +392,15 @@ const Contactos = () => {
                     name="phoneNumber"
                     required
                     type="tel"
+                    maxLength={PHONE_MAX}
+                    inputMode="numeric"
+                    pattern="\d{10}"                          // HTML5: exactamente 10 dígitos
+                    onKeyDown={(e) => {                       // bloquea teclas no numéricas
+                      if (
+                        !/^\d$/.test(e.key) &&
+                        !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)
+                      ) { e.preventDefault(); }
+                    }}
                     className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>

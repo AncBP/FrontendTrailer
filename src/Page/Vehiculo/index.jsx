@@ -286,8 +286,8 @@ const Vehiculos = () => {
                           onClick={esVehiculoActivo ? () => handleEditar(v) : undefined}
                           disabled={!esVehiculoActivo}
                           className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esVehiculoActivo
-                              ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 cursor-pointer'
-                              : 'bg-gray-100 cursor-not-allowed opacity-50'
+                            ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 cursor-pointer'
+                            : 'bg-gray-100 cursor-not-allowed opacity-50'
                             }`}
                           title={esVehiculoActivo ? 'Editar vehículo' : 'Vehículo desactivado'}
                         >
@@ -302,8 +302,8 @@ const Vehiculos = () => {
                           onClick={esVehiculoActivo ? () => handleEliminar(v.idVehicule) : undefined}
                           disabled={!esVehiculoActivo}
                           className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esVehiculoActivo
-                              ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-red-300 cursor-pointer'
-                              : 'bg-gray-100 cursor-not-allowed opacity-50'
+                            ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-red-300 cursor-pointer'
+                            : 'bg-gray-100 cursor-not-allowed opacity-50'
                             }`}
                           title={esVehiculoActivo ? 'Eliminar vehículo' : 'Vehículo desactivado'}
                         >
@@ -439,15 +439,20 @@ const Vehiculos = () => {
                     value={nuevoVehiculo.tipoVehiculo}
                     onChange={handleChange}
                     required
-                    disabled={loading}
-                    className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={loading || modo === 'editar'}
+                    className={`w-full border border-gray-300 rounded-md p-2
+              focus:outline-none focus:ring-2 focus:ring-blue-500
+              ${loading || modo === 'editar'
+                        ? 'bg-gray-100 text-gray-500 cursor-not-allowed'
+                        : 'bg-white'}`}
                   >
-                    <option value="">Selecciona un tipo</option>
-                    {vehicleTypes.map((tipo) => (
-                      <option key={tipo.idVehiculeType} value={tipo.idVehiculeType}>
-                        {tipo.name}
-                      </option>
-                    ))}
+                    {[...vehicleTypes]
+                      .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+                      .map((tipo) => (
+                        <option key={tipo.idVehiculeType} value={tipo.idVehiculeType}>
+                          {tipo.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
               </div>

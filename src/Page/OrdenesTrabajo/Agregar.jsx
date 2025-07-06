@@ -64,6 +64,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
         kmSalida: '',
         tipoVehiculo: '',
         conductor: '',
+        cedulaConductor: '',
         numeroCotizacion: '',
         fechaCotizacion: '',
         fechaFacturacion: '',
@@ -512,6 +513,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     tipoVehiculo: orden.vehicule?.vehiculeType?.idVehiculeType || '',
                     kmSalida: orden.kilometers != null ? orden.kilometers.toString() : '',
                     conductor: orden.assignedDriver?.idDriver || '',
+                    cedulaConductor : orden.assignedDriver?.document?.documentNumber || '',
                     nombreSolicitud: orden.contacts?.find(c => c.isPrincipalContact)?.name || '',
                     numeroCotizacion: orden.pricings?.[0]?.pricingNumber || '',
                     fechaCotizacion: toInputDate(orden.pricings?.[0]?.pricingDate),
@@ -538,7 +540,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     const repuestosData = orden.sparePartMaterials.map((spm, idx) => ({
                         id: idx + 1,
                         idSparePartMaterial: spm.sparePartMaterial?.idSparePartMaterial || '',
-
+                        useDetail: spm.useDetail || '',
                         cantidad: spm.cantidad || 0,
                         proveedor: spm.selectedProvider?.idProvider || '',
                         costoUnitario: spm.unitaryCost || 0,
@@ -575,7 +577,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                             ? mp.supplies.map(sup => ({
 
                                 supply: sup.supply?.idSupply || '',
-
+                                useDetail: sup.useDetail || '',
                                 selectedProvider: sup.selectedProvider?.idProvider || '',
                                 cantidad: sup.cantidad || '',
                                 unitaryCost: sup.unitaryCost || '',
@@ -790,6 +792,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
             sparePartMaterials: repuestos.map(r => ({
                 sparePartMaterial: r.idSparePartMaterial,
                 selectedProvider: r.proveedor || null,
+                useDetail: r.useDetail || null,
                 unitaryCost: Number(r.costoUnitario),
                 cantidad: Number(r.cantidad),
                 costoTotal: Number(r.costoTotal),
@@ -809,6 +812,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 selectedContractor: m.contratista || null,
                 supplies: (m.insumos || []).map(s => ({
                     supply: s.supply,
+                    useDetail: s.useDetail || null,
                     selectedProvider: s.selectedProvider || null,
                     unitaryCost: Number(s.unitaryCost),
                     cantidad: Number(s.cantidad),
@@ -838,7 +842,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
         }
     };
 
-    // Añade estos helpers en tu componente (antes del return)
+
 
     const agregarInsumo = (manoId) => {
         setManoDeObra(prev =>
@@ -848,7 +852,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                         ...m,
                         insumos: [
                             ...(m.insumos || []),
-                            { supply: '', cantidad: '', selectedProvider: '', unitaryCost: '', costoTotal: 0 }
+                            { supply: '', useDetail: '', cantidad: '', selectedProvider: '', unitaryCost: '', costoTotal: 0 }
                         ]
                     }
                     : m
@@ -908,6 +912,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
             {
                 id: nuevoId,
                 idSparePartMaterial: '',
+                useDetail: '',
                 tipo: '',
                 cantidad: '',
                 proveedor: '',
@@ -919,6 +924,10 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 stockQuantity: 0
             }
         ]);
+    };
+
+    const handleDetalleChange = (idFila, nuevoTexto) => {
+        actualizarRepuesto(idFila, 'useDetail', nuevoTexto);
     };
 
     const eliminarRepuesto = (id) => {
@@ -1081,6 +1090,31 @@ const NuevaOrdenTrabajo = ({ user }) => {
     };
 
 
+    const handleSelectDriver = async (driverId) => {
+
+        setFormulario(f => ({ ...f, conductor: driverId }));
+
+
+        let docNumber =
+            driverOptions.find(d => d.idDriver === driverId)?.document?.documentNumber;
+
+
+        if (!docNumber) {
+            try {
+                const { data } = await axios.get(`${API_URL}/driver/${driverId}`);
+                docNumber = data.document?.documentNumber || '';
+
+                setDriverOptions(prev => [...prev, data]);
+            } catch (e) {
+                console.error('No se pudo traer la cédula del conductor', e);
+            }
+        }
+
+
+        setFormulario(f => ({ ...f, cedulaConductor: docNumber }));
+    };
+
+
 
     const handleCambioFormulario = (e) => {
         const { name, value, type, checked } = e.target;
@@ -1224,6 +1258,15 @@ const NuevaOrdenTrabajo = ({ user }) => {
         if (node) observerOpc.current.observe(node);
     }, [hasMoreOpc, opcOffset]);
 
+
+    const alfabeticamente = (a, b) =>
+        a.name?.localeCompare(b.name, 'es', { sensitivity: 'base' });
+
+    const ROLES = ['Administrador', 'Coordinador de Operaciones'];
+
+    const RolFacturacion = uniqueUserOptions.filter(
+        u => ROLES.includes(u.role?.name)
+    );
 
     return (
         <div className="max-w-7xl w-full mx-auto bg-gray-50 p-6">
@@ -1423,6 +1466,188 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 )}
             </div>
 
+
+            {/* informacion del vehiculo  */}
+
+            <div className="mb-4 border border-gray-200 rounded-lg overflow-visible">
+                <div
+                    className="bg-white p-4 flex justify-between items-center cursor-pointer"
+                    onClick={() => {
+                        if (!soloPuedeEditarRepuestos && !soloPuedeEditarManoObra) toggleSeccion('infoVehiculo')
+                    }}
+                >
+                    <h2 className="text-lg font-semibold text-blue-800">Información del vehículo</h2>
+                    {secciones.infoVehiculo ? <FaChevronUp /> : <FaChevronDown />}
+                </div>
+
+                {secciones.infoVehiculo && (
+                    <div className="bg-white p-4 border-t border-gray-200">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <Listbox
+                                    value={formulario.vehicule}
+                                    onChange={val => handleVehiculeSelect({ target: { name: 'vehicule', value: val } })}
+                                >
+                                    <Listbox.Label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Placa cabezote
+                                    </Listbox.Label>
+                                    <div className="relative">
+                                        <Listbox.Button className="w-full p-2 border border-gray-300 rounded bg-white flex justify-between items-center">
+                                            <span className="truncate">
+                                                {vehiculeOptions.find(v => v.idVehicule === formulario.vehicule)
+                                                    ? vehiculeOptions.find(v => v.idVehicule === formulario.vehicule).placaCabezote
+                                                    : 'Selecciona una placa'}
+                                            </span>
+                                            <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
+                                        </Listbox.Button>
+                                        <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 overflow-auto">
+                                            {vehiculeOptions.map((v, idx) => {
+                                                const isLast = idx === vehiculeOptions.length - 1;
+                                                return (
+                                                    <Listbox.Option
+                                                        key={v.idVehicule}
+                                                        value={v.idVehicule}
+                                                        ref={isLast ? lastVehiculeRef : null}
+                                                        className={({ active }) =>
+                                                            `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''}`
+                                                        }
+                                                    >
+                                                        {({ selected }) => (
+                                                            <>
+                                                                <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>
+                                                                    {v.placaCabezote}
+                                                                </span>
+                                                                {selected && (
+                                                                    <CheckIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </Listbox.Option>
+                                                );
+                                            })}
+                                        </Listbox.Options>
+                                    </div>
+                                </Listbox>
+
+
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Placa del trailer</label>
+                                <input
+                                    value={formulario.placaTrailer}
+                                    name='placaTrailer'
+
+                                    type="text" className="w-full p-2 border border-gray-300 rounded text-left bg-gray-100"
+                                    readOnly />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Tipo de vehículo
+                                </label>
+                                <input
+                                    name="tipoVehiculo"
+                                    value={
+                                        vehicleTypeOptions.find(vt => vt.idVehiculeType === formulario.tipoVehiculo)
+                                            ? vehicleTypeOptions.find(vt => vt.idVehiculeType === formulario.tipoVehiculo).name
+                                            : ''
+                                    }
+
+                                    className="w-full p-2 border border-gray-300 rounded text-left bg-gray-100"
+                                    readOnly
+                                />
+
+
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Kilometros</label>
+                                <input
+                                    value={formulario.kmSalida}
+                                    name='kmSalida'
+                                    onChange={handleCambioFormulario}
+                                    type="text" className="w-full p-2 border border-gray-300 rounded text-left "
+                                />
+                            </div>
+                            <div>
+                                <Listbox
+                                    value={formulario.conductor}
+                                    onChange={handleSelectDriver}
+                                >
+                                    <Listbox.Label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Conductor *
+                                    </Listbox.Label>
+                                    <div className="relative">
+                                        <Listbox.Button className="w-full border border-gray-300 rounded-md p-2 flex justify-between items-center bg-white">
+                                            <span className="truncate">
+                                                {driverOptions.find(d => d.idDriver === formulario.conductor)
+                                                    ? `${driverOptions.find(d => d.idDriver === formulario.conductor).firstName} ${driverOptions.find(d => d.idDriver === formulario.conductor).lastName}`
+                                                    : 'Selecciona conductor'}
+                                            </span>
+                                            <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
+                                        </Listbox.Button>
+
+                                        <Listbox.Options
+                                            className="absolute z-10 mt-1 w-full max-h-60 overflow-auto bg-white shadow-lg rounded-md py-1 text-base focus:outline-none"
+
+                                            onScroll={e => {
+                                                const tgt = e.target;
+                                                if (tgt.scrollTop + tgt.clientHeight >= tgt.scrollHeight - 5) {
+                                                    fetchMoreDrivers();
+                                                }
+                                            }}
+                                        >
+                                            {driverOptions.map((d, idx) => {
+                                                const isLast = idx === driverOptions.length - 1;
+                                                return (
+                                                    <Listbox.Option
+                                                        key={d.idDriver}
+                                                        value={d.idDriver}
+                                                        ref={isLast ? lastDriverRef : null}
+                                                        className={({ active }) =>
+                                                            `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''
+                                                            }`
+                                                        }
+                                                    >
+                                                        {({ selected }) => (
+                                                            <>
+                                                                <span
+                                                                    className={`block truncate ${selected ? 'font-semibold' : 'font-normal'
+                                                                        }`}
+                                                                >
+                                                                    {d.firstName} {d.lastName}
+                                                                </span>
+                                                                {selected && (
+                                                                    <CheckIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
+                                                                )}
+                                                            </>
+                                                        )}
+                                                    </Listbox.Option>
+                                                );
+                                            })}
+                                        </Listbox.Options>
+                                    </div>
+                                </Listbox>
+
+
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">
+                                    Cédula conductor
+                                </label>
+                                <input
+                                    type="text"
+                                    readOnly                        
+                                    value={formulario.cedulaConductor}
+                                    className="w-full p-2 border border-gray-300 rounded bg-gray-100"
+                                />
+                            </div>
+
+                        </div>
+                    </div>
+
+                )}
+            </div>
+
             {/* Informacion del cliente  */}
 
             <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
@@ -1441,6 +1666,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
                                 <Listbox
+                                    disabled={isEdit}
                                     value={formulario.cliente}
                                     onChange={val => {
                                         setFormulario(prev => ({ ...prev, cliente: val }));
@@ -1557,174 +1783,6 @@ const NuevaOrdenTrabajo = ({ user }) => {
             </div>
 
 
-            {/* informacion del vehiculo  */}
-
-            <div className="mb-4 border border-gray-200 rounded-lg overflow-visible">
-                <div
-                    className="bg-white p-4 flex justify-between items-center cursor-pointer"
-                    onClick={() => {
-                        if (!soloPuedeEditarRepuestos && !soloPuedeEditarManoObra) toggleSeccion('infoVehiculo')
-                    }}
-                >
-                    <h2 className="text-lg font-semibold text-blue-800">Información del vehículo</h2>
-                    {secciones.infoVehiculo ? <FaChevronUp /> : <FaChevronDown />}
-                </div>
-
-                {secciones.infoVehiculo && (
-                    <div className="bg-white p-4 border-t border-gray-200">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div>
-                                <Listbox
-                                    value={formulario.vehicule}
-                                    onChange={val => handleVehiculeSelect({ target: { name: 'vehicule', value: val } })}
-                                >
-                                    <Listbox.Label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Placa cabezote
-                                    </Listbox.Label>
-                                    <div className="relative">
-                                        <Listbox.Button className="w-full p-2 border border-gray-300 rounded bg-white flex justify-between items-center">
-                                            <span className="truncate">
-                                                {vehiculeOptions.find(v => v.idVehicule === formulario.vehicule)
-                                                    ? vehiculeOptions.find(v => v.idVehicule === formulario.vehicule).placaCabezote
-                                                    : 'Selecciona una placa'}
-                                            </span>
-                                            <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
-                                        </Listbox.Button>
-                                        <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 overflow-auto">
-                                            {vehiculeOptions.map((v, idx) => {
-                                                const isLast = idx === vehiculeOptions.length - 1;
-                                                return (
-                                                    <Listbox.Option
-                                                        key={v.idVehicule}
-                                                        value={v.idVehicule}
-                                                        ref={isLast ? lastVehiculeRef : null}
-                                                        className={({ active }) =>
-                                                            `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''}`
-                                                        }
-                                                    >
-                                                        {({ selected }) => (
-                                                            <>
-                                                                <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>
-                                                                    {v.placaCabezote}
-                                                                </span>
-                                                                {selected && (
-                                                                    <CheckIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
-                                                                )}
-                                                            </>
-                                                        )}
-                                                    </Listbox.Option>
-                                                );
-                                            })}
-                                        </Listbox.Options>
-                                    </div>
-                                </Listbox>
-
-
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Placa del trailer</label>
-                                <input
-                                    value={formulario.placaTrailer}
-                                    name='placaTrailer'
-
-                                    type="text" className="w-full p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                    readOnly />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Tipo de vehículo
-                                </label>
-                                <input
-                                    name="tipoVehiculo"
-                                    value={
-                                        vehicleTypeOptions.find(vt => vt.idVehiculeType === formulario.tipoVehiculo)
-                                            ? vehicleTypeOptions.find(vt => vt.idVehiculeType === formulario.tipoVehiculo).name
-                                            : ''
-                                    }
-
-                                    className="w-full p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                    readOnly
-                                />
-
-
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Kilometros</label>
-                                <input
-                                    value={formulario.kmSalida}
-                                    name='kmSalida'
-                                    onChange={handleCambioFormulario}
-                                    type="text" className="w-full p-2 border border-gray-300 rounded text-left "
-                                />
-                            </div>
-                            <div>
-                                <Listbox
-                                    value={formulario.conductor}
-                                    onChange={val => setFormulario(f => ({ ...f, conductor: val }))}
-                                >
-                                    <Listbox.Label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Conductor *
-                                    </Listbox.Label>
-                                    <div className="relative">
-                                        <Listbox.Button className="w-full border border-gray-300 rounded-md p-2 flex justify-between items-center bg-white">
-                                            <span className="truncate">
-                                                {driverOptions.find(d => d.idDriver === formulario.conductor)
-                                                    ? `${driverOptions.find(d => d.idDriver === formulario.conductor).firstName} ${driverOptions.find(d => d.idDriver === formulario.conductor).lastName}`
-                                                    : 'Selecciona conductor'}
-                                            </span>
-                                            <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
-                                        </Listbox.Button>
-
-                                        <Listbox.Options
-                                            className="absolute z-10 mt-1 w-full max-h-60 overflow-auto bg-white shadow-lg rounded-md py-1 text-base focus:outline-none"
-
-                                            onScroll={e => {
-                                                const tgt = e.target;
-                                                if (tgt.scrollTop + tgt.clientHeight >= tgt.scrollHeight - 5) {
-                                                    fetchMoreDrivers();
-                                                }
-                                            }}
-                                        >
-                                            {driverOptions.map((d, idx) => {
-                                                const isLast = idx === driverOptions.length - 1;
-                                                return (
-                                                    <Listbox.Option
-                                                        key={d.idDriver}
-                                                        value={d.idDriver}
-                                                        ref={isLast ? lastDriverRef : null}
-                                                        className={({ active }) =>
-                                                            `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''
-                                                            }`
-                                                        }
-                                                    >
-                                                        {({ selected }) => (
-                                                            <>
-                                                                <span
-                                                                    className={`block truncate ${selected ? 'font-semibold' : 'font-normal'
-                                                                        }`}
-                                                                >
-                                                                    {d.firstName} {d.lastName}
-                                                                </span>
-                                                                {selected && (
-                                                                    <CheckIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
-                                                                )}
-                                                            </>
-                                                        )}
-                                                    </Listbox.Option>
-                                                );
-                                            })}
-                                        </Listbox.Options>
-                                    </div>
-                                </Listbox>
-
-
-                            </div>
-
-                        </div>
-                    </div>
-
-                )}
-            </div>
 
 
 
@@ -1761,6 +1819,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                 <thead>
                                     <tr className="bg-gray-50 text-xs text-gray-500 uppercase">
                                         <th className="px-4 py-2">Repuesto</th>
+                                        <th className="px-4 py-2 ">Detalle</th>
                                         <th className="px-4 py-2">Cantidad</th>
                                         <th className="px-4 py-2">Proveedor</th>
                                         <th className="px-4 py-2">Costo Unitario</th>
@@ -1772,165 +1831,187 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {repuestos.map((repuesto, index) => (
-                                        <tr key={repuesto.id} className="border-b border-gray-100">
-                                            {/* === REPUESTO === */}
-                                            <td className="px-2 py-3">
-                                                <select
-                                                    className="w-40 p-2 border border-gray-300 rounded"
-                                                    value={repuesto.idSparePartMaterial}
-                                                    onChange={e => handleCambioRepuestoSelect(repuesto.id, e.target.value)}
-                                                >
-                                                    <option value="">Selecciona un repuesto</option>
-                                                    {(Array.isArray(opcRepuestos)
-                                                        ? opcRepuestos.filter(mat => mat.active === true)
-                                                        : []
-                                                    ).map(mat => (
-                                                        <option
-                                                            key={mat.idSparePartMaterial}
-                                                            value={mat.idSparePartMaterial}
-                                                        >
-                                                            {mat.name} ({mat.measurementUnit})
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </td>
+                                    {[...repuestos]
+                                        .sort((a, b) => {
+                                            // nombre visible de cada repuesto
+                                            const nombreA = (opcRepuestos.find(m => m.idSparePartMaterial === a.idSparePartMaterial)?.name || '').toLowerCase();
+                                            const nombreB = (opcRepuestos.find(m => m.idSparePartMaterial === b.idSparePartMaterial)?.name || '').toLowerCase();
+
+                                            return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base' });
+                                        })
+                                        .map(repuesto => (
+                                            <tr key={repuesto.id} className="border-b border-gray-100">
+                                                {/* === REPUESTO === */}
+                                                <td className="px-2 py-3">
+                                                    <select
+                                                        className="w-40 p-2 border border-gray-300 rounded"
+                                                        value={repuesto.idSparePartMaterial}
+                                                        onChange={e => handleCambioRepuestoSelect(repuesto.id, e.target.value)}
+                                                    >
+                                                        <option value="">Selecciona un repuesto</option>
+                                                        {(Array.isArray(opcRepuestos)
+                                                            ? [...opcRepuestos]
+                                                                .filter(mat => mat.active)
+                                                                .sort((a, b) =>
+                                                                    a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })
+                                                                )
+                                                            : []
+                                                        ).map(mat => (
+                                                            <option
+                                                                key={mat.idSparePartMaterial}
+                                                                value={mat.idSparePartMaterial}
+                                                            >
+                                                                {mat.name} ({mat.measurementUnit})
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                </td>
+                                                <td className="w-32 px-3 py-3">
+                                                    <textarea
+                                                        type="text"
+                                                        className="w-50 p-2 border border-gray-300 rounded bg-white"
+                                                        value={repuesto.useDetail ?? ''}
+                                                        onChange={e => handleDetalleChange(repuesto.id, e.target.value)}
+                                                        rows={1}
+                                                        style={{ whiteSpace: 'pre-wrap' }}
+                                                    />
+                                                </td>
 
 
-                                            {/* === CANTIDAD === */}
-                                            <td className="px-2 py-3">
+                                                {/* === CANTIDAD === */}
+                                                <td className="px-2 py-3">
 
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    max={repuesto.stockQuantity}
-                                                    className="w-22 p-2 border border-gray-300 rounded text-center"
-                                                    value={repuesto.cantidad}
-                                                    onChange={(e) =>
-                                                        handleCantidadChange(repuesto.id, e.target.value)
-                                                    }
-                                                />
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        step="1"
+                                                        className="w-22 p-2 border border-gray-300 rounded text-center"
+                                                        value={repuesto.cantidad}
+                                                        onChange={(e) =>
+                                                            handleCantidadChange(repuesto.id, e.target.value)
+                                                        }
+                                                    />
 
-                                            </td>
+                                                </td>
 
-                                            {/* === Proveedor === */}
-                                            <td className="px-2 py-3">
-                                                {(() => {
-                                                    const mat = opcRepuestos.find(m => m.idSparePartMaterial === repuesto.idSparePartMaterial);
-                                                    const providersForMat = mat?.providers || [];
-                                                    return (
-                                                        <select
-                                                            disabled={!canEditFactor}
-                                                            className={`w-30 p-2 border border-gray-300 rounded ${canEditFactor ? 'bg-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-                                                            value={repuesto.proveedor}
-                                                            onChange={e => actualizarRepuesto(repuesto.id, "proveedor", e.target.value)}
-                                                        >
-                                                            <option value="">Selecciona proveedor</option>
-                                                            {providersForMat.map(p => (
-                                                                <option key={p.idProvider} value={p.idProvider}>
-                                                                    {p.name}
-                                                                </option>
-                                                            ))}
-                                                        </select>
+                                                {/* === Proveedor === */}
+                                                <td className="px-2 py-3">
+                                                    {(() => {
+                                                        const mat = opcRepuestos.find(m => m.idSparePartMaterial === repuesto.idSparePartMaterial);
+                                                        const providersForMat = mat?.providers || [];
+                                                        return (
+                                                            <select
+                                                                disabled={!canEditFactor}
+                                                                className={`w-30 p-2 border border-gray-300 rounded ${canEditFactor ? 'bg-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                                                                value={repuesto.proveedor}
+                                                                onChange={e => actualizarRepuesto(repuesto.id, "proveedor", e.target.value)}
+                                                            >
+                                                                <option value="">Selecciona proveedor</option>
+                                                                {providersForMat.map(p => (
+                                                                    <option key={p.idProvider} value={p.idProvider}>
+                                                                        {p.name}
+                                                                    </option>
+                                                                ))}
+                                                            </select>
 
-                                                    );
-                                                })()}
-                                            </td>
+                                                        );
+                                                    })()}
+                                                </td>
 
-                                            {/* === Costo Unitario === */}
-                                            <td className="px-2 py-3">
-                                                <input
-                                                    type="text"
-                                                    inputMode="numeric"
-                                                    className={`w-30 p-2 border border-gray-300 rounded ${canEditFactor ? 'bg-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-                                                    disabled={!canEditFactor}
-                                                    value={
-                                                        repuesto.costoUnitario != null
-                                                            ? repuesto.costoUnitario.toLocaleString('es-CO')
-                                                            : ''
-                                                    }
-                                                    onChange={e => {
+                                                {/* === Costo Unitario === */}
+                                                <td className="px-2 py-3">
+                                                    <input
+                                                        type="text"
+                                                        inputMode="numeric"
+                                                        className={`w-30 p-2 border border-gray-300 rounded ${canEditFactor ? 'bg-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                                                        disabled={!canEditFactor}
+                                                        value={
+                                                            repuesto.costoUnitario != null
+                                                                ? repuesto.costoUnitario.toLocaleString('es-CO')
+                                                                : ''
+                                                        }
+                                                        onChange={e => {
 
-                                                        const raw = e.target.value.replace(/\D/g, '');
-                                                        const num = raw ? parseInt(raw, 10) : 0;
-                                                        actualizarRepuesto(repuesto.id, "costoUnitario", num);
-                                                    }}
+                                                            const raw = e.target.value.replace(/\D/g, '');
+                                                            const num = raw ? parseInt(raw, 10) : 0;
+                                                            actualizarRepuesto(repuesto.id, "costoUnitario", num);
+                                                        }}
 
-                                                />
-                                            </td>
+                                                    />
+                                                </td>
 
-                                            {/* === Costo Total === */}
-                                            <td className="px-2 py-3">
-                                                <input
-                                                    type="text"
-                                                    className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
+                                                {/* === Costo Total === */}
+                                                <td className="px-2 py-3">
+                                                    <input
+                                                        type="text"
+                                                        className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
 
-                                                    value={(repuesto.costoTotal ?? 0).toLocaleString('es-CO')}
-                                                    readOnly
-                                                />
-                                            </td>
+                                                        value={(repuesto.costoTotal ?? 0).toLocaleString('es-CO')}
+                                                        readOnly
+                                                    />
+                                                </td>
 
-                                            {/* === Factor Venta === */}
-                                            <td className="px-2 py-3">
-                                                <input
-                                                    type="number"
-                                                    step="0.01"
-                                                    className={`
+                                                {/* === Factor Venta === */}
+                                                <td className="px-2 py-3">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        className={`
                                                      w-24 p-2 border border-gray-300 rounded text-left
                                                     ${canEditFactor
-                                                            ? 'bg-white text-gray-900 border-gray-300'
-                                                            : 'bg-gray-100'}
+                                                                ? 'bg-white text-gray-900 border-gray-300'
+                                                                : 'bg-gray-100'}
     `}
-                                                    value={repuesto.factorVenta}
-                                                    readOnly={!canEditFactor}
-                                                    onChange={(e) =>
-                                                        actualizarRepuesto(
-                                                            repuesto.id,
-                                                            "factorVenta",
-                                                            parseFloat(e.target.value) || 0
-                                                        )
-                                                    }
-                                                />
-                                            </td>
+                                                        value={repuesto.factorVenta}
+                                                        readOnly={!canEditFactor}
+                                                        onChange={(e) =>
+                                                            actualizarRepuesto(
+                                                                repuesto.id,
+                                                                "factorVenta",
+                                                                parseFloat(e.target.value) || 0
+                                                            )
+                                                        }
+                                                    />
+                                                </td>
 
-                                            {/* === Venta Unitaria === */}
-                                            <td className="px-2 py-3">
-                                                <input
-                                                    type="text"
-                                                    readOnly
-                                                    className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                                    value={(repuesto.ventaUnitaria ?? 0).toLocaleString('es-CO')}
-                                                    onChange={(e) =>
-                                                        actualizarRepuesto(
-                                                            repuesto.id,
-                                                            "ventaUnitaria",
-                                                            parseFloat(e.target.value) || 0
-                                                        )
-                                                    }
-                                                />
-                                            </td>
+                                                {/* === Venta Unitaria === */}
+                                                <td className="px-2 py-3">
+                                                    <input
+                                                        type="text"
+                                                        readOnly
+                                                        className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
+                                                        value={(repuesto.ventaUnitaria ?? 0).toLocaleString('es-CO')}
+                                                        onChange={(e) =>
+                                                            actualizarRepuesto(
+                                                                repuesto.id,
+                                                                "ventaUnitaria",
+                                                                parseFloat(e.target.value) || 0
+                                                            )
+                                                        }
+                                                    />
+                                                </td>
 
-                                            {/* === Venta Total === */}
-                                            <td className="px-2 py-3">
-                                                <input
-                                                    type="text"
-                                                    className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
-                                                    value={(repuesto.ventaTotal ?? 0).toLocaleString('es-CO')}
-                                                    readOnly
-                                                />
-                                            </td>
+                                                {/* === Venta Total === */}
+                                                <td className="px-2 py-3">
+                                                    <input
+                                                        type="text"
+                                                        className="w-24 p-2 border border-gray-300 rounded text-left bg-gray-100"
+                                                        value={(repuesto.ventaTotal ?? 0).toLocaleString('es-CO')}
+                                                        readOnly
+                                                    />
+                                                </td>
 
-                                            {/* === Botón Eliminar === */}
-                                            <td className="px-2 py-3">
-                                                <button
-                                                    className="text-red-500"
-                                                    onClick={() => eliminarRepuesto(repuesto.id)}
-                                                >
-                                                    <FaTimes />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                {/* === Botón Eliminar === */}
+                                                <td className="px-2 py-3">
+                                                    <button
+                                                        className="text-red-500"
+                                                        onClick={() => eliminarRepuesto(repuesto.id)}
+                                                    >
+                                                        <FaTimes />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
                                 </tbody>
 
                             </table>
@@ -1994,277 +2075,306 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {manoDeObra.map(item => (
-                                        <React.Fragment key={item.id}>
+                                    {[...manoDeObra]
+                                        .sort((a, b) => {
 
-                                            <tr className="hover:bg-gray-50 border-b-2 border-blue-100">
-                                                <td className="w-48 px-3 py-3">
-                                                    <select
-                                                        className="w-100 p-2 border border-gray-300 rounded bg-white"
-                                                        value={item.idManpower || ""}
-                                                        onChange={e => actualizarManoDeObra(item.id, "idManpower", e.target.value)}
-                                                    >
-                                                        <option value="">Seleccione mano de obra</option>
-                                                        {manpowers.map(mp => (
-                                                            <option key={mp.idManpower} value={mp.idManpower}>{mp.name}</option>
-                                                        ))}
-                                                    </select>
-                                                </td>
-                                                <td className="w-32 px-3 py-3">
-                                                    <textarea
-                                                        type="text"
-                                                        className="w-50 p-2 border border-gray-300 rounded bg-white"
-                                                        value={item.useDetail}
-                                                        onChange={e => actualizarManoDeObra(item.id, 'useDetail', e.target.value)}
-                                                        rows={1}
-                                                        style={{ whiteSpace: 'pre-wrap' }}
-                                                    />
-                                                </td>
+                                            const nombreA = (
+                                                manpowers.find(mp => mp.idManpower === a.idManpower)?.name || ''
+                                            ).toLowerCase();
 
-                                                <td className="w-24 px-3 py-3">
-                                                    <input
-                                                        type="number"
-                                                        min="1"
-                                                        className="w-20 p-2 border border-gray-300 rounded bg-white"
-                                                        value={item.cantidad}
-                                                        onChange={e => actualizarManoDeObra(item.id, 'cantidad', parseInt(e.target.value, 10) || 0)}
-                                                    />
-                                                </td>
-                                                <td className="w-36 px-3 py-3">
-                                                    <select
-                                                        className="w-40 p-2 border border-gray-300 rounded bg-white"
-                                                        value={item.contratista}
-                                                        onChange={e => actualizarManoDeObra(item.id, 'contratista', e.target.value)}
-                                                    >
-                                                        <option value="">Selecciona contratista</option>
-                                                        {userOptions
-                                                            .filter(u =>
-                                                                ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name) &&
-                                                                u.active === true &&
-                                                                u.userStatus?.name === 'Activo'
-                                                            )
-                                                            .map((u, i) => (
-                                                                <option key={`${u.idUser}-${i}`} value={u.idUser}>
-                                                                    {`${u.firstName} ${u.lastName}`}
-                                                                </option>
+                                            const nombreB = (
+                                                manpowers.find(mp => mp.idManpower === b.idManpower)?.name || ''
+                                            ).toLowerCase();
+
+                                            return nombreA.localeCompare(nombreB, 'es', { sensitivity: 'base' });
+                                        })
+                                        .map(item => (
+                                            <React.Fragment key={item.id}>
+
+                                                <tr className="hover:bg-gray-50 border-b-2 border-blue-100">
+                                                    <td className="w-48 px-3 py-3">
+                                                        <select
+                                                            className="w-100 p-2 border border-gray-300 rounded bg-white"
+                                                            value={item.idManpower || ""}
+                                                            onChange={e => actualizarManoDeObra(item.id, "idManpower", e.target.value)}
+                                                        >
+                                                            <option value="">Seleccione mano de obra</option>
+                                                            {manpowers.map(mp => (
+                                                                <option key={mp.idManpower} value={mp.idManpower}>{mp.name}</option>
                                                             ))}
-                                                    </select>
-                                                </td>
-                                                <td className="w-28 px-3 py-3">
-                                                    <input
-                                                        type="text"
-                                                        inputMode="numeric"
-                                                        pattern="\d*"
-                                                        className={'w-24 p-2 border border-gray-300 rounded text-left bg-white text-gray-900 border-gray-300'}
-                                                        value={item.unitaryCost || ''}
-                                                        onChange={e => {
-                                                            const val = parseFloat(e.target.value) || 0
-                                                            actualizarManoDeObra(item.id, 'unitaryCost', val)
-                                                        }}
-                                                    />
-                                                </td>
-                                                <td className="w-28 px-3 py-3">
-                                                    <input
-                                                        type="text"
-                                                        readOnly
-                                                        className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
-                                                        value={(item.totalCost ?? 0).toLocaleString('es-CO')}
-                                                    />
-                                                </td>
-                                                <td className="w-28 px-3 py-3">
-                                                    <input
-                                                        type="number"
-                                                        step="0.01"
-                                                        readOnly={!canEditFactor}
-                                                        className={`
+                                                        </select>
+                                                    </td>
+                                                    <td className="w-32 px-3 py-3">
+                                                        <textarea
+                                                            type="text"
+                                                            className="w-50 p-2 border border-gray-300 rounded bg-white"
+                                                            value={item.useDetail}
+                                                            onChange={e => actualizarManoDeObra(item.id, 'useDetail', e.target.value)}
+                                                            rows={1}
+                                                            style={{ whiteSpace: 'pre-wrap' }}
+                                                        />
+                                                    </td>
+
+                                                    <td className="w-24 px-3 py-3">
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            step="1"
+                                                            className="w-20 p-2 border border-gray-300 rounded bg-white"
+                                                            value={item.cantidad}
+                                                            onChange={e => actualizarManoDeObra(item.id, 'cantidad', parseInt(e.target.value, 10) || 0)}
+                                                        />
+                                                    </td>
+                                                    <td className="w-36 px-3 py-3">
+                                                        <select
+                                                            className="w-40 p-2 border border-gray-300 rounded bg-white"
+                                                            value={item.contratista}
+                                                            onChange={e => actualizarManoDeObra(item.id, 'contratista', e.target.value)}
+                                                        >
+                                                            <option value="">Selecciona contratista</option>
+                                                            {userOptions
+                                                                .filter(u =>
+                                                                    ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name) &&
+                                                                    u.active === true &&
+                                                                    u.userStatus?.name === 'Activo'
+                                                                )
+                                                                .map((u, i) => (
+                                                                    <option key={`${u.idUser}-${i}`} value={u.idUser}>
+                                                                        {`${u.firstName} ${u.lastName}`}
+                                                                    </option>
+                                                                ))}
+                                                        </select>
+                                                    </td>
+                                                    <td className="w-28 px-3 py-3">
+                                                        <input
+                                                            type="text"
+                                                            inputMode="numeric"
+                                                            pattern="\d*"
+                                                            className={'w-24 p-2 border border-gray-300 rounded text-left bg-white text-gray-900 border-gray-300'}
+                                                            value={item.unitaryCost || ''}
+                                                            onChange={e => {
+                                                                const val = parseFloat(e.target.value) || 0
+                                                                actualizarManoDeObra(item.id, 'unitaryCost', val)
+                                                            }}
+                                                        />
+                                                    </td>
+                                                    <td className="w-28 px-3 py-3">
+                                                        <input
+                                                            type="text"
+                                                            readOnly
+                                                            className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
+                                                            value={(item.totalCost ?? 0).toLocaleString('es-CO')}
+                                                        />
+                                                    </td>
+                                                    <td className="w-28 px-3 py-3">
+                                                        <input
+                                                            type="number"
+                                                            step="0.01"
+                                                            readOnly={!canEditFactor}
+                                                            className={`
                                                         w-24 p-2 border border-gray-300 rounded text-left
                                                         ${canEditFactor
-                                                                ? 'bg-white text-gray-900 border-gray-300'
-                                                                : 'bg-gray-100 text-gray-500'}
+                                                                    ? 'bg-white text-gray-900 border-gray-300'
+                                                                    : 'bg-gray-100 text-gray-500'}
                         `}
-                                                        value={item.sellFactor}
-                                                        onChange={e => actualizarManoDeObra(item.id, 'sellFactor', parseFloat(e.target.value) || 0)}
-                                                    />
-                                                </td>
-                                                <td className="w-28 px-3 py-3">
-                                                    <input
-                                                        type="text"
-                                                        readOnly
-                                                        className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
-                                                        value={(item.unitSell ?? 0).toLocaleString('es-CO')}
-                                                    />
-                                                </td>
-                                                <td className="w-28 px-3 py-3">
-                                                    <input
-                                                        type="text"
-                                                        readOnly
-                                                        className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
-                                                        value={(item.totalSell ?? 0).toLocaleString('es-CO')}
-                                                    />
-                                                </td>
-                                                <td className="w-24 px-3 py-3 text-center">
-                                                    <button
-                                                        className="bg-green-500 text-white px-2 py-1 rounded text-sm hover:bg-green-600 transition-colors"
-                                                        onClick={() => agregarInsumo(item.id)}
-                                                    >
-                                                        Insumo
-                                                    </button>
-                                                </td>
-                                                <td className="w-16 px-3 py-3 text-center">
-                                                    <button
-                                                        className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
-                                                        onClick={() => eliminarManoDeObra(item.id)}
-                                                    >
-                                                        <FaTimes />
-                                                    </button>
-                                                </td>
-                                            </tr>
-
-                                            {/* Subtabla de insumos separada */}
-                                            {item.insumos && item.insumos.length > 0 && (
-                                                <tr>
-                                                    <td colSpan="12" className="px-6 py-4">
-                                                        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-                                                            <div className="flex justify-between items-center mb-3">
-                                                                <h4 className="text-sm font-semibold text-gray-700">
-                                                                    Insumos para: {manpowers.find(mp => mp.idManpower === item.idManpower)?.name || 'Mano de obra'}
-                                                                </h4>
-                                                                <span className="text-xs text-gray-500">{item.insumos.length} insumo(s)</span>
-                                                            </div>
-
-                                                            <div className="overflow-x-auto">
-                                                                <table className="w-full text-sm">
-                                                                    <thead>
-                                                                        <tr className="bg-gray-100 border-b">
-                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Insumo</th>
-                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Unidad</th>
-                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Cantidad</th>
-                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Proveedor</th>
-                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Costo Unitario.</th>
-                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Costo Total</th>
-                                                                            <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase"></th>
-                                                                            <th className="px-3 py-2 text-center text-xs font-medium text-gray-600 uppercase">Eliminar</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        {item.insumos.map((ins, idx) => {
-                                                                            const provs = supplyOptions.find(s => s.idSupply === ins.supply)?.providers || [];
-                                                                            const selectedSupply = supplyOptions.find(s => s.idSupply === ins.supply);
-
-                                                                            return (
-                                                                                <tr key={`${item.id}-insumo-${idx}`} className="border-b border-gray-200 hover:bg-gray-100">
-                                                                                    <td className="px-3 py-2">
-                                                                                        <select
-                                                                                            className="w-full p-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-gray-400"
-                                                                                            value={ins.supply}
-                                                                                            onChange={e => actualizarInsumo(item.id, idx, 'supply', e.target.value)}
-                                                                                        >
-                                                                                            <option value="">— Selecciona Insumo —</option>
-                                                                                            {supplyOptions
-                                                                                                .filter(s => s.active)
-                                                                                                .map(s => (
-                                                                                                    <option key={s.idSupply} value={s.idSupply}>
-                                                                                                        {s.name}
-                                                                                                    </option>
-                                                                                                ))
-                                                                                            }
-                                                                                        </select>
-                                                                                    </td>
-                                                                                    <td className="px-3 py-2">
-                                                                                        <span className="text-sm text-gray-600">
-                                                                                            {selectedSupply?.measurementUnit || '-'}
-                                                                                        </span>
-                                                                                    </td>
-                                                                                    <td className="px-3 py-2">
-                                                                                        <input
-                                                                                            type="number"
-                                                                                            className="w-20 p-1 border border-gray-300 rounded text-center text-sm focus:ring-1 focus:ring-gray-400"
-                                                                                            value={ins.cantidad}
-                                                                                            onChange={e => actualizarInsumo(item.id, idx, 'cantidad', e.target.value)}
-                                                                                        />
-                                                                                    </td>
-                                                                                    <td className="px-3 py-2">
-                                                                                        <select
-                                                                                            disabled={!canEditFactor}
-                                                                                            className={`w-30 p-2 border border-gray-300 rounded ${canEditFactor ? 'bg-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-                                                                                            value={ins.selectedProvider}
-                                                                                            onChange={e => actualizarInsumo(item.id, idx, 'selectedProvider', e.target.value)}
-                                                                                        >
-                                                                                            <option value="">— Proveedor —</option>
-                                                                                            {provs.map((p, i) => (
-                                                                                                <option key={`${p.idProvider}-${i}`} value={p.idProvider}>
-                                                                                                    {p.name}
-                                                                                                </option>
-                                                                                            ))}
-                                                                                        </select>
-                                                                                    </td>
-                                                                                    <td className="px-3 py-2">
-                                                                                        <input
-                                                                                            type="text"
-                                                                                            inputMode="numeric"
-                                                                                            pattern="\d*"
-                                                                                            readOnly={!canEditFactor}
-                                                                                            className={`
-                                                                                            w-24 p-2 border border-gray-300 rounded text-left
-                                                                                            ${canEditFactor
-                                                                                                    ? 'bg-white text-gray-900 border-gray-300'
-                                                                                                    : 'bg-gray-100 text-gray-500'}
-                                                                                            `}
-                                                                                            value={
-                                                                                                ins.unitaryCost != null
-                                                                                                    ? ins.unitaryCost.toLocaleString('es-CO')
-                                                                                                    : ''
-                                                                                            }
-                                                                                            onChange={e => {
-                                                                                                const raw = e.target.value.replace(/\D/g, '')
-                                                                                                const num = raw ? parseInt(raw, 10) : 0
-                                                                                                actualizarInsumo(item.id, idx, 'unitaryCost', num)
-                                                                                            }}
-                                                                                        />
-                                                                                    </td>
-                                                                                    <td className="px-3 py-2">
-                                                                                        <span className="text-sm font-medium text-gray-800">
-                                                                                            {ins.costoTotal.toLocaleString()}
-                                                                                        </span>
-                                                                                    </td>
-                                                                                    <td className="px-3 py-2">
-                                                                                        <span className="text-sm font-medium text-gray-800">
-
-                                                                                        </span>
-                                                                                    </td>
-
-
-                                                                                    <td className="px-3 py-2 text-center">
-                                                                                        <button
-                                                                                            className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
-                                                                                            onClick={() => eliminarInsumo(item.id, idx)}
-                                                                                        >
-                                                                                            <FaTimes size={12} />
-                                                                                        </button>
-                                                                                    </td>
-                                                                                </tr>
-                                                                            );
-                                                                        })}
-                                                                    </tbody>
-                                                                    <tfoot>
-                                                                        <tr className="bg-gray-200 font-semibold">
-                                                                            <td colSpan="5" className="px-3 py-2 text-right text-sm">Subtotal Insumos:</td>
-                                                                            <td className="px-3 py-2 text-right text-sm">
-                                                                                ${item.insumos.reduce((sum, ins) => sum + (parseFloat(ins.costoTotal) || 0), 0).toLocaleString()}
-                                                                            </td>
-                                                                            <td className="px-3 py-2"></td>
-
-                                                                            <td className="px-3 py-2"></td>
-                                                                        </tr>
-                                                                    </tfoot>
-                                                                </table>
-                                                            </div>
-                                                        </div>
+                                                            value={item.sellFactor}
+                                                            onChange={e => actualizarManoDeObra(item.id, 'sellFactor', parseFloat(e.target.value) || 0)}
+                                                        />
+                                                    </td>
+                                                    <td className="w-28 px-3 py-3">
+                                                        <input
+                                                            type="text"
+                                                            readOnly
+                                                            className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
+                                                            value={(item.unitSell ?? 0).toLocaleString('es-CO')}
+                                                        />
+                                                    </td>
+                                                    <td className="w-28 px-3 py-3">
+                                                        <input
+                                                            type="text"
+                                                            readOnly
+                                                            className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
+                                                            value={(item.totalSell ?? 0).toLocaleString('es-CO')}
+                                                        />
+                                                    </td>
+                                                    <td className="w-24 px-3 py-3 text-center">
+                                                        <button
+                                                            className="bg-green-500 text-white px-2 py-1 rounded text-sm hover:bg-green-600 transition-colors"
+                                                            onClick={() => agregarInsumo(item.id)}
+                                                        >
+                                                            Insumo
+                                                        </button>
+                                                    </td>
+                                                    <td className="w-16 px-3 py-3 text-center">
+                                                        <button
+                                                            className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                                                            onClick={() => eliminarManoDeObra(item.id)}
+                                                        >
+                                                            <FaTimes />
+                                                        </button>
                                                     </td>
                                                 </tr>
-                                            )}
-                                        </React.Fragment>
-                                    ))}
+
+                                                {/* Subtabla de insumos separada */}
+                                                {item.insumos && item.insumos.length > 0 && (
+                                                    <tr>
+                                                        <td colSpan="12" className="px-6 py-4">
+                                                            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                                                                <div className="flex justify-between items-center mb-3">
+                                                                    <h4 className="text-sm font-semibold text-gray-700">
+                                                                        Insumos para: {manpowers.find(mp => mp.idManpower === item.idManpower)?.name || 'Mano de obra'}
+                                                                    </h4>
+                                                                    <span className="text-xs text-gray-500">{item.insumos.length} insumo(s)</span>
+                                                                </div>
+
+                                                                <div className="overflow-x-auto">
+                                                                    <table className="w-full text-sm">
+                                                                        <thead>
+                                                                            <tr className="bg-gray-100 border-b">
+                                                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Insumo</th>
+                                                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Detalle</th>
+                                                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Unidad</th>
+                                                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Cantidad</th>
+                                                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Proveedor</th>
+                                                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Costo Unitario.</th>
+                                                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase">Costo Total</th>
+                                                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-600 uppercase"></th>
+                                                                                <th className="px-3 py-2 text-center text-xs font-medium text-gray-600 uppercase">Eliminar</th>
+                                                                            </tr>
+                                                                        </thead>
+                                                                        <tbody>
+                                                                            {item.insumos.map((ins, idx) => {
+                                                                                const provs = supplyOptions.find(s => s.idSupply === ins.supply)?.providers || [];
+                                                                                const selectedSupply = supplyOptions.find(s => s.idSupply === ins.supply);
+
+                                                                                return (
+                                                                                    <tr key={`${item.id}-insumo-${idx}`} className="border-b border-gray-200 hover:bg-gray-100">
+                                                                                        <td className="px-3 py-2">
+                                                                                            <select
+                                                                                                className="w-full p-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-gray-400"
+                                                                                                value={ins.supply}
+                                                                                                onChange={e => actualizarInsumo(item.id, idx, 'supply', e.target.value)}
+                                                                                            >
+                                                                                                <option value="">— Selecciona Insumo —</option>
+                                                                                                {supplyOptions
+                                                                                                    .filter(s => s.active)
+                                                                                                    .map(s => (
+                                                                                                        <option key={s.idSupply} value={s.idSupply}>
+                                                                                                            {s.name}
+                                                                                                        </option>
+                                                                                                    ))
+                                                                                                }
+                                                                                            </select>
+                                                                                        </td>
+                                                                                        <td className="w-32 px-3 py-3">
+                                                                                            <textarea
+                                                                                                type="text"
+                                                                                                className="w-50 p-2 border border-gray-300 rounded bg-white"
+                                                                                                value={ins.useDetail}
+                                                                                                onChange={e => actualizarInsumo(item.id, idx, 'useDetail', e.target.value)}
+                                                                                                rows={1}
+                                                                                                style={{ whiteSpace: 'pre-wrap' }}
+                                                                                            />
+                                                                                        </td>
+                                                                                        <td className="px-3 py-2">
+                                                                                            <span className="text-sm text-gray-600">
+                                                                                                {selectedSupply?.measurementUnit || '-'}
+                                                                                            </span>
+                                                                                        </td>
+
+
+                                                                                        <td className="px-3 py-2">
+                                                                                            <input
+                                                                                                type="number"
+                                                                                                min="0"
+                                                                                                step="1"
+                                                                                                className="w-20 p-1 border border-gray-300 rounded text-center text-sm focus:ring-1 focus:ring-gray-400"
+                                                                                                value={ins.cantidad}
+                                                                                                onChange={e => actualizarInsumo(item.id, idx, 'cantidad', e.target.value)}
+                                                                                            />
+                                                                                        </td>
+                                                                                        <td className="px-3 py-2">
+                                                                                            <select
+                                                                                                disabled={!canEditFactor}
+                                                                                                className={`w-30 p-2 border border-gray-300 rounded ${canEditFactor ? 'bg-white' : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                                                                                                value={ins.selectedProvider}
+                                                                                                onChange={e => actualizarInsumo(item.id, idx, 'selectedProvider', e.target.value)}
+                                                                                            >
+                                                                                                <option value="">— Proveedor —</option>
+                                                                                                {provs.map((p, i) => (
+                                                                                                    <option key={`${p.idProvider}-${i}`} value={p.idProvider}>
+                                                                                                        {p.name}
+                                                                                                    </option>
+                                                                                                ))}
+                                                                                            </select>
+                                                                                        </td>
+                                                                                        <td className="px-3 py-2">
+                                                                                            <input
+                                                                                                type="text"
+                                                                                                inputMode="numeric"
+                                                                                                pattern="\d*"
+                                                                                                readOnly={!canEditFactor}
+                                                                                                className={`
+                                                                                            w-24 p-2 border border-gray-300 rounded text-left
+                                                                                            ${canEditFactor
+                                                                                                        ? 'bg-white text-gray-900 border-gray-300'
+                                                                                                        : 'bg-gray-100 text-gray-500'}
+                                                                                            `}
+                                                                                                value={
+                                                                                                    ins.unitaryCost != null
+                                                                                                        ? ins.unitaryCost.toLocaleString('es-CO')
+                                                                                                        : ''
+                                                                                                }
+                                                                                                onChange={e => {
+                                                                                                    const raw = e.target.value.replace(/\D/g, '')
+                                                                                                    const num = raw ? parseInt(raw, 10) : 0
+                                                                                                    actualizarInsumo(item.id, idx, 'unitaryCost', num)
+                                                                                                }}
+                                                                                            />
+                                                                                        </td>
+                                                                                        <td className="px-3 py-2">
+                                                                                            <span className="text-sm font-medium text-gray-800">
+                                                                                                {ins.costoTotal.toLocaleString()}
+                                                                                            </span>
+                                                                                        </td>
+                                                                                        <td className="px-3 py-2">
+                                                                                            <span className="text-sm font-medium text-gray-800">
+
+                                                                                            </span>
+                                                                                        </td>
+
+
+                                                                                        <td className="px-3 py-2 text-center">
+                                                                                            <button
+                                                                                                className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                                                                                                onClick={() => eliminarInsumo(item.id, idx)}
+                                                                                            >
+                                                                                                <FaTimes size={12} />
+                                                                                            </button>
+                                                                                        </td>
+                                                                                    </tr>
+                                                                                );
+                                                                            })}
+                                                                        </tbody>
+                                                                        <tfoot>
+                                                                            <tr className="bg-gray-200 font-semibold">
+                                                                                <td colSpan="5" className="px-3 py-2 text-right text-sm">Subtotal Insumos:</td>
+                                                                                <td className="px-3 py-2 text-right text-sm">
+                                                                                    ${item.insumos.reduce((sum, ins) => sum + (parseFloat(ins.costoTotal) || 0), 0).toLocaleString()}
+                                                                                </td>
+                                                                                <td className="px-3 py-2"></td>
+
+                                                                                <td className="px-3 py-2"></td>
+                                                                            </tr>
+                                                                        </tfoot>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        ))}
                                 </tbody>
                             </table>
                         </div>
@@ -2346,39 +2456,38 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                     <div className="relative">
                                         <Listbox.Button className="w-full border border-gray-300 rounded-md p-2 flex justify-between items-center bg-white">
                                             <span className="truncate">
-                                                {uniqueUserOptions.find(u => u.idUser === formulario.cotizadoPor)
-                                                    ? `${uniqueUserOptions.find(u => u.idUser === formulario.cotizadoPor).firstName} ${uniqueUserOptions.find(u => u.idUser === formulario.cotizadoPor).lastName}`
+                                                {RolFacturacion.find(u => u.idUser === formulario.cotizadoPor)
+                                                    ? `${RolFacturacion.find(u => u.idUser === formulario.cotizadoPor).firstName}
+                                                     ${RolFacturacion.find(u => u.idUser === formulario.cotizadoPor).lastName}`
                                                     : 'Selecciona usuario'}
                                             </span>
                                             <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
                                         </Listbox.Button>
 
                                         <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 overflow-auto focus:outline-none">
-                                            {uniqueUserOptions.map((u, idx) => {
-                                                const isLast = idx === uniqueUserOptions.length - 1;
-                                                return (
-                                                    <Listbox.Option
-                                                        key={u.idUser}
-                                                        value={u.idUser}
-                                                        ref={isLast ? lastUserRef : null}
-                                                        className={({ active }) =>
-                                                            `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''}`
-                                                        }
-                                                    >
-                                                        {({ selected }) => (
-                                                            <>
-                                                                <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>
-                                                                    {u.firstName} {u.lastName}
-                                                                </span>
-                                                                {selected && (
-                                                                    <CheckIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
-                                                                )}
-                                                            </>
-                                                        )}
-                                                    </Listbox.Option>
-                                                );
-                                            })}
+                                            {RolFacturacion.map((u, idx) => (
+                                                <Listbox.Option
+                                                    key={u.idUser}
+                                                    value={u.idUser}
+                                                    ref={idx === RolFacturacion.length - 1 ? lastUserRef : null}
+                                                    className={({ active }) =>
+                                                        `cursor-pointer select-none relative py-2 pl-8 pr-4
+                                                      ${active ? 'bg-blue-100' : ''}`
+                                                    }>
+                                                    {({ selected }) => (
+                                                        <>
+                                                            <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>
+                                                                {u.firstName} {u.lastName}
+                                                            </span>
+                                                            {selected && (
+                                                                <CheckIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-600" />
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </Listbox.Option>
+                                            ))}
                                         </Listbox.Options>
+
                                     </div>
                                 </Listbox>
                             </div>
@@ -2409,39 +2518,38 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                     <div className="relative">
                                         <Listbox.Button className="w-full border border-gray-300 rounded-md p-2 flex justify-between items-center bg-white">
                                             <span className="truncate">
-                                                {uniqueUserOptions.find(u => u.idUser === formulario.facturadoPor)
-                                                    ? `${uniqueUserOptions.find(u => u.idUser === formulario.facturadoPor).firstName} ${uniqueUserOptions.find(u => u.idUser === formulario.facturadoPor).lastName}`
+                                                {RolFacturacion.find(u => u.idUser === formulario.facturadoPor)
+                                                    ? `${RolFacturacion.find(u => u.idUser === formulario.facturadoPor).firstName}
+                                                    ${RolFacturacion.find(u => u.idUser === formulario.facturadoPor).lastName}`
                                                     : 'Selecciona usuario'}
                                             </span>
                                             <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />
                                         </Listbox.Button>
 
                                         <Listbox.Options className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 overflow-auto focus:outline-none">
-                                            {uniqueUserOptions.map((u, idx) => {
-                                                const isLast = idx === uniqueUserOptions.length - 1;
-                                                return (
-                                                    <Listbox.Option
-                                                        key={u.idUser}
-                                                        value={u.idUser}
-                                                        ref={isLast ? lastUserRef : null}
-                                                        className={({ active }) =>
-                                                            `cursor-pointer select-none relative py-2 pl-8 pr-4 ${active ? 'bg-blue-100' : ''}`
-                                                        }
-                                                    >
-                                                        {({ selected }) => (
-                                                            <>
-                                                                <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>
-                                                                    {u.firstName} {u.lastName}
-                                                                </span>
-                                                                {selected && (
-                                                                    <CheckIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 w-5 h-5 text-blue-600" />
-                                                                )}
-                                                            </>
-                                                        )}
-                                                    </Listbox.Option>
-                                                );
-                                            })}
+                                            {RolFacturacion.map((u, idx) => (
+                                                <Listbox.Option
+                                                    key={u.idUser}
+                                                    value={u.idUser}
+                                                    ref={idx === RolFacturacion.length - 1 ? lastUserRef : null}
+                                                    className={({ active }) =>
+                                                        `cursor-pointer select-none relative py-2 pl-8 pr-4
+                                                    ${active ? 'bg-blue-100' : ''}`
+                                                    }>
+                                                    {({ selected }) => (
+                                                        <>
+                                                            <span className={`block truncate ${selected ? 'font-semibold' : 'font-normal'}`}>
+                                                                {u.firstName} {u.lastName}
+                                                            </span>
+                                                            {selected && (
+                                                                <CheckIcon className="absolute left-2 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-600" />
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </Listbox.Option>
+                                            ))}
                                         </Listbox.Options>
+
                                     </div>
                                 </Listbox>
                             </div>

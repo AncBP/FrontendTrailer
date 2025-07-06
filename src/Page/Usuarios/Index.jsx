@@ -81,14 +81,70 @@ const Usuarios = () => {
     }
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    if (name === 'documentType' || name === 'number') {
-      setNuevoUsuario(prev => ({ ...prev, document: { ...prev.document, [name]: value } }));
-    } else {
-      setNuevoUsuario(prev => ({ ...prev, [name]: value }));
-    }
+   const ALLOWED_DOC_TYPES = [
+    'Cédula de Ciudadanía',
+    'Cédula de Extranjería',
+    'Permiso Especial de Permanencia',
+    'Número de Identificación Tributaria',
+  ];
+
+
+  const MAX_DIGITS_BY_DOC = {
+    'Cédula de Ciudadanía': 10,
+    'Cédula de Extranjería': 10,
+    'Permiso Especial de Permanencia': 10,
+    'Número de Identificación Tributaria': 9,
   };
+
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/;
+
+  const handleActivar = async (id) => {
+  try {
+    await axios.patch(`${API_URL}/${id}`, { active: true }); 
+    toast.success('Usuario reactivado');
+    await fetchUsuariosPaginados();
+  } catch (err) {
+    console.error(err);
+    toast.error('No se pudo reactivar el usuario');
+  }
+};
+
+const handleChange = (e) => {
+  const { name, value } = e.target;
+
+  /* Teléfono → solo 10 dígitos */
+  if (name === 'telefono') {
+    const sanitized = value.replace(/\D/g, '').slice(0, 10);
+    setNuevoUsuario((prev) => ({ ...prev, telefono: sanitized }));
+    return;
+  }
+
+  /* Nº de documento → solo dígitos (longitud según tipo) */
+  if (name === 'number') {
+    const selectedTypeId   = nuevoUsuario.document.documentType;
+    const selectedTypeName =
+      documentTypes.find((t) => t.idDocumentType === selectedTypeId)?.name || '';
+
+    const maxLen   = MAX_DIGITS_BY_DOC[selectedTypeName] || 30;
+    const sanitized = value.replace(/\D/g, '').slice(0, maxLen);
+
+    setNuevoUsuario((prev) => ({
+      ...prev,
+      document: { ...prev.document, number: sanitized },
+    }));
+    return;
+  }
+
+  /* Cambio de tipo de documento */
+  if (name === 'documentType') {
+    setNuevoUsuario((prev) => ({
+      ...prev,
+      document: { ...prev.document, documentType: value },
+    }));
+  } else {
+    setNuevoUsuario((prev) => ({ ...prev, [name]: value }));
+  }
+};
 
   const handleToggleActivos = () => {
     setMostrarSoloActivos(prev => !prev);
@@ -99,6 +155,10 @@ const Usuarios = () => {
   };
 
   const handleGuardar = async () => {
+    if (!EMAIL_REGEX.test(nuevoUsuario.correo)) {
+          toast.error('Ingrese un correo electrónico válido (ejemplo@dominio.com)');
+          return;
+        }
     try {
       const payload = {
         firstName: nuevoUsuario.nombre,
@@ -279,82 +339,91 @@ const Usuarios = () => {
               <th className="py-2"></th>
             </tr>
           </thead>
-          <tbody>
-            {usuarios.length > 0 ? (
-              usuarios.map((user) => (
-                <tr key={user.idUser} className="border-t border-gray-100">
-                  <td className="py-3 text-sm">
-                    {user.document?.documentType?.abbreviation || '—'}
-                  </td>
-                  <td className="py-3 text-sm">
-                    {user.document?.documentNumber || '—'}
-                  </td>
-                  <td className="py-3 text-sm">
-                    {user.firstName || '—'}
-                  </td>
-                  <td className="py-3 text-sm">
-                    {user.lastName || '—'}
-                  </td>
-                  <td className="py-3 text-sm">
-                    {user.role?.name || '—'}
-                  </td>
-                  <td className="py-3 text-sm">
-                    {user.email || '—'}
-                  </td>
-                  <td className="py-3 text-sm">
-                    {user.phone || '—'}
-                  </td>
-                  <td className="py-3 text-sm">
-                    <span className={`${obtenerColorEstado(user.userStatus?.name)} text-white text-sm rounded-full px-4 py-1`}>
-                      {user.userStatus?.name || '—'}
-                    </span>
-                  </td>
-                  <td className="py-3 flex gap-2 justify-end">
-                    {(() => {
-                      const esUsuarioActivo = user.active !== false;
+         <tbody>
+  {usuarios.length > 0 ? (
+    usuarios.map((user) => {
+      const esUsuarioActivo = user.active === true;   // ← estado lógico
 
-                      return (
-                        <>
-                          <button
-                            onClick={esUsuarioActivo ? () => handleEditar(user) : undefined}
-                            disabled={!esUsuarioActivo}
-                            className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esUsuarioActivo
-                              ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 cursor-pointer'
-                              : 'bg-gray-100 cursor-not-allowed opacity-50'
-                              }`}
-                            title={esUsuarioActivo ? 'Editar usuario' : 'No se puede editar este usuario'}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${esUsuarioActivo ? 'text-gray-700' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={esUsuarioActivo ? () => handleEliminar(user.idUser) : undefined}
-                            disabled={!esUsuarioActivo}
-                            className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esUsuarioActivo
-                              ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-red-300 cursor-pointer'
-                              : 'bg-gray-100 cursor-not-allowed opacity-50'
-                              }`}
-                            title={esUsuarioActivo ? 'Eliminar usuario' : 'No se puede eliminar este usuario'}
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" className={`w-4 h-4 ${esUsuarioActivo ? 'text-gray-700' : 'text-gray-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </>
-                      );
-                    })()}
-                  </td>
-                </tr>
-              ))
+      return (
+        <tr key={user.idUser} className="border-t border-gray-100">
+          <td className="py-3 text-sm">{user.document?.documentType?.abbreviation || '—'}</td>
+          <td className="py-3 text-sm">{user.document?.documentNumber      || '—'}</td>
+          <td className="py-3 text-sm">{user.firstName                     || '—'}</td>
+          <td className="py-3 text-sm">{user.lastName                      || '—'}</td>
+          <td className="py-3 text-sm">{user.role?.name                    || '—'}</td>
+          <td className="py-3 text-sm">{user.email                         || '—'}</td>
+          <td className="py-3 text-sm">{user.phone                         || '—'}</td>
+          <td className="py-3 text-sm">
+            <span className={`${obtenerColorEstado(user.userStatus?.name)} text-white text-sm rounded-full px-4 py-1`}>
+              {user.userStatus?.name || '—'}
+            </span>
+          </td>
+
+          {/* --------- Acciones --------- */}
+          <td className="py-3 flex gap-2 justify-end">
+            {esUsuarioActivo ? (
+              /* ---------- USUARIO ACTIVO: Editar + Eliminar ---------- */
+              <>
+                {/* Editar */}
+                <button
+                  onClick={() => handleEditar(user)}
+                  className="p-1 rounded-full bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5
+                             focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-300"
+                  title="Editar usuario"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none"
+                       viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5
+                             m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                </button>
+
+                {/* Eliminar (desactivar) */}
+                <button
+                  onClick={() => handleEliminar(user.idUser)}
+                  className="p-1 rounded-full bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5
+                             focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-300"
+                  title="Eliminar usuario"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700" fill="none"
+                       viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862
+                             a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6
+                             m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3
+                             M4 7h16"/>
+                  </svg>
+                </button>
+              </>
             ) : (
-              <tr>
-                <td colSpan="9" className="text-center p-4 text-gray-400">
-                  {busqueda ? 'No hay coincidencias' : 'No hay usuarios registrados'}
-                </td>
-              </tr>
+              /* ---------- USUARIO INACTIVO: botón Activar ---------- */
+              <button
+                onClick={() => handleActivar(user.idUser)}
+                className="p-1 rounded-full bg-green-600 hover:bg-green-700 text-white
+                           focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-300"
+                title="Activar usuario"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none"
+                     viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M5 13l4 4L19 7" />
+                </svg>
+              </button>
             )}
-          </tbody>
+          </td>
+        </tr>
+      );
+    })
+  ) : (
+    <tr>
+      <td colSpan="9" className="text-center p-4 text-gray-400">
+        {busqueda ? 'No hay coincidencias' : 'No hay usuarios registrados'}
+      </td>
+    </tr>
+  )}
+</tbody>
+
 
         </table>
 
@@ -436,11 +505,13 @@ const Usuarios = () => {
                     className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Selecciona un tipo</option>
-                    {documentTypes.map((tipo) => (
-                      <option key={tipo.idDocumentType} value={tipo.idDocumentType}>
-                        {tipo.name}
-                      </option>
-                    ))}
+                     {documentTypes
+                      .filter((t) => ALLOWED_DOC_TYPES.includes(t.name))  
+    .map((tipo) => (
+                    <option key={tipo.idDocumentType} value={tipo.idDocumentType}>
+                      {tipo.name === 'Número de Identificación Tributaria' ? 'NIT' : tipo.name}
+                    </option>
+    ))}
                   </select>
                 </div>
                 <div className="w-2/3">
@@ -451,6 +522,8 @@ const Usuarios = () => {
                     name="number"
                     required
                     type="text"
+                    inputMode="numeric"
+                    pattern="\d*"
                     className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
                   />
                 </div>
@@ -463,6 +536,8 @@ const Usuarios = () => {
                   onChange={handleChange}
                   name="correo"
                   required
+                    pattern="^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$"
+                    title="Ejemplo: usuario@dominio.com"
                   type="email"
                   className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
@@ -476,6 +551,15 @@ const Usuarios = () => {
                   name="telefono"
                   required
                   type="tel"
+                   maxLength={10}
+                  inputMode="numeric"
+                  pattern="\d{10}"
+                  onKeyDown={(e) => {
+                    if (
+                      !/^\d$/.test(e.key) &&
+                      !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)
+                    ) { e.preventDefault(); }
+                  }}
                   className="w-full border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>

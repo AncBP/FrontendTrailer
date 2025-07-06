@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 const API_URL = 'https://api.trailers.trailersdelcaribe.net/api/client';
 
 const Cliente = () => {
-  // Estados para datos y UI
+
   const [clientes, setClientes] = useState([]);
   const [documentTypes, setDocumentTypes] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -17,7 +17,7 @@ const Cliente = () => {
   const [totalPages, setTotalPages] = useState(1);
   const ITEMS_PER_PAGE = 6;
 
-  // Modal / formulario
+
   const [modo, setModo] = useState('agregar');
   const [mostrarModal, setMostrarModal] = useState(false);
 
@@ -91,17 +91,64 @@ const Cliente = () => {
     });
     setMostrarModal(true);
   };
-  const handleChange = e => {
+
+  const ALLOWED_DOC_TYPES = [
+    'Cédula de Ciudadanía',
+    'Cédula de Extranjería',
+    'Permiso Especial de Permanencia',
+    'Número de Identificación Tributaria',
+  ];
+
+
+  const MAX_DIGITS_BY_DOC = {
+    'Cédula de Ciudadanía': 10,
+    'Cédula de Extranjería': 10,
+    'Permiso Especial de Permanencia': 10,
+    'Número de Identificación Tributaria': 9,
+  };
+
+
+  const handleChange = (e) => {
     const { name, value } = e.target;
-    if (name === 'number' || name === 'documentType') {
-      setNuevoCliente(prev => ({
+
+
+    if (name === 'number') {
+      const selectedTypeId = nuevoCliente.document.documentType;
+      const selectedTypeName =
+        documentTypes.find((t) => t.idDocumentType === selectedTypeId)?.name || '';
+
+      const maxLen = MAX_DIGITS_BY_DOC[selectedTypeName] || 30;
+      const sanitized = value.replace(/\D/g, '').slice(0, maxLen);
+
+      setNuevoCliente((prev) => ({
         ...prev,
-        document: { ...prev.document, [name]: value }
+        document: { ...prev.document, number: sanitized },
+      }));
+      return;
+    }
+
+
+    if (name === 'documentType') {
+      setNuevoCliente((prev) => ({
+        ...prev,
+        document: { ...prev.document, documentType: value },
       }));
     } else {
-      setNuevoCliente(prev => ({ ...prev, [name]: value }));
+      setNuevoCliente((prev) => ({ ...prev, [name]: value }));
     }
   };
+
+  const handleActivar = async (id) => {
+    try {
+      await axios.patch(`${API_URL}/${id}`, { active: true });
+      toast.success('Cliente reactivado');
+      fetchClientes();
+    } catch (err) {
+      console.error(err);
+      toast.error('No se pudo reactivar el cliente');
+    }
+  };
+
   const handleGuardar = async () => {
     try {
       const payload = {
@@ -202,65 +249,88 @@ const Cliente = () => {
                 </tr>
               </thead>
               <tbody>
-                {clientes.length > 0 ? clientes.map(c => (
-                  <tr key={c.idClient} className="border-t border-gray-100">
-                    <td className="py-3 text-sm">
-                      {c.document?.documentType?.abbreviation || '—'}
-                    </td>
-                    <td className="py-3 text-sm">
-                      {c.document?.documentNumber || '—'}
-                    </td>
-                    <td className="py-3 text-sm">
-                      {c.name || '—'}
-                    </td>
-                    <td className="py-3 flex gap-2 justify-end">
-                      {(() => {
-                        const esClienteActivo = c.active === true;
+                {clientes.length > 0 ? (
+                  clientes.map((c) => {
+                    const esClienteActivo = c.active === true;          
 
-                        return (
-                          <>
+                    return (
+                      <tr key={c.idClient} className="border-t border-gray-100">
+                       
+                        <td className="py-3 text-sm">
+                          {c.document?.documentType?.abbreviation || '—'}
+                        </td>
+
+                      
+                        <td className="py-3 text-sm">
+                          {c.document?.documentNumber || '—'}
+                        </td>
+
+                        
+                        <td className="py-3 text-sm">
+                          {c.name || '—'}
+                        </td>
+
+                      
+                        <td className="py-3 flex gap-2 justify-end">
+                          {esClienteActivo ? (
+                            
+                            <>
+                             
+                              <button
+                                onClick={() => handleEditar(c)}
+                                className="p-1 rounded-full bg-white shadow-md hover:shadow-xl
+                             transform hover:-translate-y-0.5 focus:outline-none
+                             focus:ring-2 focus:ring-offset-2 focus:ring-blue-300"
+                                title="Editar cliente"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700"
+                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5
+                             m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              </button>
+
+                              
+                              <button
+                                onClick={() => handleEliminar(c.idClient)}
+                                className="p-1 rounded-full bg-white shadow-md hover:shadow-xl
+                             transform hover:-translate-y-0.5 focus:outline-none
+                             focus:ring-2 focus:ring-offset-2 focus:ring-red-300"
+                                title="Eliminar cliente"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4 text-gray-700"
+                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862
+                             a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6
+                             m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3
+                             M4 7h16" />
+                                </svg>
+                              </button>
+                            </>
+                          ) : (
+                            
                             <button
-                              onClick={esClienteActivo ? () => handleEditar(c) : undefined}
-                              disabled={!esClienteActivo}
-                              className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esClienteActivo
-                                ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-blue-300 cursor-pointer'
-                                : 'bg-gray-100 cursor-not-allowed opacity-50'
-                                }`}
-                              title={esClienteActivo ? 'Editar usuario' : 'No se puede editar este usuario'}
+                              onClick={() => handleActivar(c.idClient)}
+                              className="p-1 rounded-full bg-green-600 hover:bg-green-700 text-white
+                           focus:outline-none focus:ring-2 focus:ring-offset-2
+                           focus:ring-green-300"
+                              title="Activar cliente"
                             >
-                              <svg xmlns="http://www.w3.org/2000/svg"
-                                className="w-4 h-4 text-gray-700" fill="none"
-                                viewBox="0 0 24 24" stroke="currentColor">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4"
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                  d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5
-                               m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                  d="M5 13l4 4L19 7" />
                               </svg>
                             </button>
-                            <button
-                              onClick={esClienteActivo ? () => handleEliminar(c.idClient) : undefined}
-                              disabled={!esClienteActivo}
-                              className={`p-1 rounded-full transition-all duration-150 focus:outline-none ${esClienteActivo
-                                ? 'bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5 focus:ring-2 focus:ring-offset-2 focus:ring-red-300 cursor-pointer'
-                                : 'bg-gray-100 cursor-not-allowed opacity-50'
-                                }`}
-                              title={esClienteActivo ? 'Eliminar usuario' : 'No se puede eliminar este usuario'}
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg"
-                                className="w-4 h-4 text-gray-700" fill="none"
-                                viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                                  d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862
-                               a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6
-                               m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3
-                               M4 7h16"/>
-                              </svg>
-                            </button>
-                          </>
-                        );
-                      })()}
-                    </td>
-                  </tr>
-                )) : (
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                
                   <tr>
                     <td colSpan="4" className="text-center p-4 text-gray-400">
                       {busqueda ? 'No hay coincidencias' : 'No hay clientes para mostrar'}
@@ -268,10 +338,11 @@ const Cliente = () => {
                   </tr>
                 )}
               </tbody>
+
             </table>
 
             <div className="flex justify-center items-center mt-6 gap-4">
-              {/* Flecha Anterior */}
+            
               <button
                 onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
                 disabled={currentPage === 1}
@@ -280,12 +351,12 @@ const Cliente = () => {
                 ‹
               </button>
 
-              {/* Indicador de página */}
+            
               <span className="text-sm text-gray-700">
                 Página {currentPage} de {totalPages}
               </span>
 
-              {/* Flecha Siguiente */}
+             
               <button
                 onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
                 disabled={currentPage === totalPages}
@@ -334,11 +405,13 @@ const Cliente = () => {
                     className="w-full border border-gray-300 rounded-md p-2"
                   >
                     <option value="">Selecciona un tipo</option>
-                    {documentTypes.map((tipo) => (
-                      <option key={tipo.idDocumentType} value={tipo.idDocumentType}>
-                        {tipo.name}
-                      </option>
-                    ))}
+                    {documentTypes
+                      .filter((t) => ALLOWED_DOC_TYPES.includes(t.name))  
+    .map((tipo) => (
+                    <option key={tipo.idDocumentType} value={tipo.idDocumentType}>
+                      {tipo.name === 'Número de Identificación Tributaria' ? 'NIT' : tipo.name}
+                    </option>
+    ))}
                   </select>
                 </div>
                 <div className="w-2/3">
