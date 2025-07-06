@@ -513,7 +513,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     tipoVehiculo: orden.vehicule?.vehiculeType?.idVehiculeType || '',
                     kmSalida: orden.kilometers != null ? orden.kilometers.toString() : '',
                     conductor: orden.assignedDriver?.idDriver || '',
-                    cedulaConductor : orden.assignedDriver?.document?.documentNumber || '',
+                    cedulaConductor: orden.assignedDriver?.document?.documentNumber || '',
                     nombreSolicitud: orden.contacts?.find(c => c.isPrincipalContact)?.name || '',
                     numeroCotizacion: orden.pricings?.[0]?.pricingNumber || '',
                     fechaCotizacion: toInputDate(orden.pricings?.[0]?.pricingDate),
@@ -728,6 +728,28 @@ const NuevaOrdenTrabajo = ({ user }) => {
     };
 
     const handleGuardar = async () => {
+
+        if (user?.role?.name === 'Coordinador de Operaciones') {
+            const repuestoConError = repuestos.find(
+                r => Number(r.costoUnitario) <= 0 || Number(r.ventaUnitaria) <= 0
+            );
+
+            const manoConError = manoDeObra.find(
+                m =>
+                    Number(m.unitaryCost) <= 0 ||
+                    Number(m.unitSell) <= 0 ||
+                    (m.insumos || []).some(
+                        i => Number(i.unitaryCost) <= 0 || Number(i.ventaUnitaria) <= 0
+                    )
+            );
+
+            if (repuestoConError || manoConError) {
+                toast.error(
+                    'los campos "Costo unitario" y "Venta unitaria" deben ser mayores que 0.'
+                );
+                return;
+            }
+        }
 
         const crearFechaValida = (fecha, hora = '00:00:00') => {
             if (!fecha) return null;
@@ -1013,6 +1035,15 @@ const NuevaOrdenTrabajo = ({ user }) => {
         );
     };
 
+    const isContractor = ['Contratista', 'Colaborador', 'Mecánico'].includes(
+        user?.role?.name
+    );
+    const userId = user?.idUser;
+
+    const manoDeObraVisibles = isContractor
+        ? manoDeObra.filter(m => m.contratista === userId)
+        : manoDeObra;
+
     const agregarManoDeObra = () => {
         const nuevoId = manoDeObra.length
             ? Math.max(...manoDeObra.map(m => m.id)) + 1
@@ -1029,18 +1060,24 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 sellFactor: 0,
                 unitSell: 0,
                 totalSell: 0,
-                idManpower: ''
+                idManpower: '',
+                contratista: isContractor ? userId : ''
             }
         ]);
     };
 
     const eliminarManoDeObra = (id) => {
-        setManoDeObra(manoDeObra.filter(m => m.id !== id));
+        setManoDeObra(prev =>
+            prev.filter(m =>
+                isContractor ? !(m.id === id && m.contratista === userId) : m.id !== id
+            )
+        );
     };
 
     const actualizarManoDeObra = (id, campo, valor) => {
         setManoDeObra(prev =>
             prev.map(m => {
+                if (isContractor && m.contratista !== userId) return m;
                 if (m.id === id) {
                     let copia = { ...m, [campo]: valor };
 
@@ -1636,7 +1673,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                 </label>
                                 <input
                                     type="text"
-                                    readOnly                        
+                                    readOnly
                                     value={formulario.cedulaConductor}
                                     className="w-full p-2 border border-gray-300 rounded bg-gray-100"
                                 />
@@ -2075,7 +2112,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
-                                    {[...manoDeObra]
+                                    {[...manoDeObraVisibles]
                                         .sort((a, b) => {
 
                                             const nombreA = (
@@ -2092,29 +2129,38 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                             <React.Fragment key={item.id}>
 
                                                 <tr className="hover:bg-gray-50 border-b-2 border-blue-100">
+                                                    {/* ── Descripción ───────────────────────────────────────────── */}
                                                     <td className="w-48 px-3 py-3">
                                                         <select
                                                             className="w-100 p-2 border border-gray-300 rounded bg-white"
-                                                            value={item.idManpower || ""}
-                                                            onChange={e => actualizarManoDeObra(item.id, "idManpower", e.target.value)}
+                                                            value={item.idManpower || ''}
+                                                            onChange={e =>
+                                                                actualizarManoDeObra(item.id, 'idManpower', e.target.value)
+                                                            }
                                                         >
                                                             <option value="">Seleccione mano de obra</option>
                                                             {manpowers.map(mp => (
-                                                                <option key={mp.idManpower} value={mp.idManpower}>{mp.name}</option>
+                                                                <option key={mp.idManpower} value={mp.idManpower}>
+                                                                    {mp.name}
+                                                                </option>
                                                             ))}
                                                         </select>
                                                     </td>
+
+                                                    {/* ── Detalle ──────────────────────────────────────────────── */}
                                                     <td className="w-32 px-3 py-3">
                                                         <textarea
-                                                            type="text"
                                                             className="w-50 p-2 border border-gray-300 rounded bg-white"
                                                             value={item.useDetail}
-                                                            onChange={e => actualizarManoDeObra(item.id, 'useDetail', e.target.value)}
+                                                            onChange={e =>
+                                                                actualizarManoDeObra(item.id, 'useDetail', e.target.value)
+                                                            }
                                                             rows={1}
                                                             style={{ whiteSpace: 'pre-wrap' }}
                                                         />
                                                     </td>
 
+                                                    {/* ── Cantidad ─────────────────────────────────────────────── */}
                                                     <td className="w-24 px-3 py-3">
                                                         <input
                                                             type="number"
@@ -2122,42 +2168,60 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                             step="1"
                                                             className="w-20 p-2 border border-gray-300 rounded bg-white"
                                                             value={item.cantidad}
-                                                            onChange={e => actualizarManoDeObra(item.id, 'cantidad', parseInt(e.target.value, 10) || 0)}
+                                                            onChange={e =>
+                                                                actualizarManoDeObra(
+                                                                    item.id,
+                                                                    'cantidad',
+                                                                    parseInt(e.target.value, 10) || 0
+                                                                )
+                                                            }
                                                         />
                                                     </td>
+
+                                                    {/* ── Contratista ──────────────────────────────────────────── */}
                                                     <td className="w-36 px-3 py-3">
                                                         <select
                                                             className="w-40 p-2 border border-gray-300 rounded bg-white"
                                                             value={item.contratista}
-                                                            onChange={e => actualizarManoDeObra(item.id, 'contratista', e.target.value)}
+                                                            onChange={e =>
+                                                                actualizarManoDeObra(item.id, 'contratista', e.target.value)
+                                                            }
                                                         >
                                                             <option value="">Selecciona contratista</option>
                                                             {userOptions
-                                                                .filter(u =>
-                                                                    ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name) &&
-                                                                    u.active === true &&
-                                                                    u.userStatus?.name === 'Activo'
+                                                                .filter(
+                                                                    u =>
+                                                                        ['Contratista', 'Colaborador', 'Mecánico'].includes(u.role?.name) &&
+                                                                        u.active === true &&
+                                                                        u.userStatus?.name === 'Activo'
                                                                 )
-                                                                .map((u, i) => (
-                                                                    <option key={`${u.idUser}-${i}`} value={u.idUser}>
-                                                                        {`${u.firstName} ${u.lastName}`}
+                                                                .map(u => (
+                                                                    <option key={u.idUser} value={u.idUser}>
+                                                                        {u.firstName} {u.lastName}
                                                                     </option>
                                                                 ))}
                                                         </select>
                                                     </td>
+
+                                                    {/* ── Costo Unitario ──────────────────────────────────────── */}
                                                     <td className="w-28 px-3 py-3">
                                                         <input
                                                             type="text"
                                                             inputMode="numeric"
                                                             pattern="\d*"
-                                                            className={'w-24 p-2 border border-gray-300 rounded text-left bg-white text-gray-900 border-gray-300'}
+                                                            className="w-24 p-2 border border-gray-300 rounded text-left bg-white"
                                                             value={item.unitaryCost || ''}
-                                                            onChange={e => {
-                                                                const val = parseFloat(e.target.value) || 0
-                                                                actualizarManoDeObra(item.id, 'unitaryCost', val)
-                                                            }}
+                                                            onChange={e =>
+                                                                actualizarManoDeObra(
+                                                                    item.id,
+                                                                    'unitaryCost',
+                                                                    parseFloat(e.target.value) || 0
+                                                                )
+                                                            }
                                                         />
                                                     </td>
+
+                                                    {/* ── Costo Total ─────────────────────────────────────────── */}
                                                     <td className="w-28 px-3 py-3">
                                                         <input
                                                             type="text"
@@ -2166,21 +2230,29 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                             value={(item.totalCost ?? 0).toLocaleString('es-CO')}
                                                         />
                                                     </td>
+
+                                                    {/* ── Factor de Venta ─────────────────────────────────────── */}
                                                     <td className="w-28 px-3 py-3">
                                                         <input
                                                             type="number"
                                                             step="0.01"
                                                             readOnly={!canEditFactor}
-                                                            className={`
-                                                        w-24 p-2 border border-gray-300 rounded text-left
-                                                        ${canEditFactor
-                                                                    ? 'bg-white text-gray-900 border-gray-300'
-                                                                    : 'bg-gray-100 text-gray-500'}
-                        `}
+                                                            className={`w-24 p-2 border rounded text-left ${canEditFactor
+                                                                ? 'bg-white text-gray-900 border-gray-300'
+                                                                : 'bg-gray-100 text-gray-500'
+                                                                }`}
                                                             value={item.sellFactor}
-                                                            onChange={e => actualizarManoDeObra(item.id, 'sellFactor', parseFloat(e.target.value) || 0)}
+                                                            onChange={e =>
+                                                                actualizarManoDeObra(
+                                                                    item.id,
+                                                                    'sellFactor',
+                                                                    parseFloat(e.target.value) || 0
+                                                                )
+                                                            }
                                                         />
                                                     </td>
+
+                                                    {/* ── Venta Unitaria ──────────────────────────────────────── */}
                                                     <td className="w-28 px-3 py-3">
                                                         <input
                                                             type="text"
@@ -2189,6 +2261,8 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                             value={(item.unitSell ?? 0).toLocaleString('es-CO')}
                                                         />
                                                     </td>
+
+                                                    {/* ── Venta Total ─────────────────────────────────────────── */}
                                                     <td className="w-28 px-3 py-3">
                                                         <input
                                                             type="text"
@@ -2197,23 +2271,33 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                             value={(item.totalSell ?? 0).toLocaleString('es-CO')}
                                                         />
                                                     </td>
-                                                    <td className="w-24 px-3 py-3 text-center">
-                                                        <button
-                                                            className="bg-green-500 text-white px-2 py-1 rounded text-sm hover:bg-green-600 transition-colors"
-                                                            onClick={() => agregarInsumo(item.id)}
-                                                        >
-                                                            Insumo
-                                                        </button>
-                                                    </td>
-                                                    <td className="w-16 px-3 py-3 text-center">
-                                                        <button
-                                                            className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
-                                                            onClick={() => eliminarManoDeObra(item.id)}
-                                                        >
-                                                            <FaTimes />
-                                                        </button>
-                                                    </td>
+
+                                                    {/* ── Acciones (solo su propio contratista o roles superiores) ─ */}
+                                                    {(!isContractor || item.contratista === userId) && (
+                                                        <>
+                                                            {/* Botón Insumo */}
+                                                            <td className="w-24 px-3 py-3 text-center">
+                                                                <button
+                                                                    className="bg-green-500 text-white px-2 py-1 rounded text-sm hover:bg-green-600 transition-colors"
+                                                                    onClick={() => agregarInsumo(item.id)}
+                                                                >
+                                                                    Insumo
+                                                                </button>
+                                                            </td>
+
+                                                            {/* Botón Eliminar */}
+                                                            <td className="w-16 px-3 py-3 text-center">
+                                                                <button
+                                                                    className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                                                                    onClick={() => eliminarManoDeObra(item.id)}
+                                                                >
+                                                                    <FaTimes />
+                                                                </button>
+                                                            </td>
+                                                        </>
+                                                    )}
                                                 </tr>
+
 
                                                 {/* Subtabla de insumos separada */}
                                                 {item.insumos && item.insumos.length > 0 && (
