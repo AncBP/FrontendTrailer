@@ -136,6 +136,23 @@ export async function descargarOrdenCompletaPDFClinete_pdfmake(orden) {
                   ? `${orden.assignedDriver.firstName} ${orden.assignedDriver.lastName}`
                   : '—', style: 'value' }
               ]},
+               {
+                text: [
+
+                  {
+                    text:
+                      (orden.assignedDriver?.document?.documentType?.name ||
+                        '') + ': ',
+                    style: 'label'
+                  },
+
+
+                  {
+                    text: orden.assignedDriver?.document?.documentNumber || '—',
+                    style: 'value'
+                  }
+                ]
+              },
               { text: [
                 { text: 'Teléfono: ', style: 'label' },
                 { text: orden.assignedDriver?.phoneNumber || '—', style: 'value' }
@@ -147,228 +164,111 @@ export async function descargarOrdenCompletaPDFClinete_pdfmake(orden) {
         margin: [0, 0, 0, 15]
       },
 
-      // === REPUESTOS Y MATERIALES ===
-      ...(isValidArray(orden.sparePartMaterials) ? [
-        { text: "REPUESTOS Y MATERIALES", style: "section" },
-        {
-          table: {
-            headerRows: 1,
-            widths: [85, 30, 65, 60, 60],
-            body: [
-              [
-                { text: 'Material', style: 'tableHeader' },
-                
-                { text: 'Cant.', style: 'tableHeader' },
-                { text: 'Proveedor', style: 'tableHeader' },
-                
-                { text: 'Venta U.', style: 'tableHeader' },
-                { text: 'Venta T.', style: 'tableHeader' }
-              ],
-              ...orden.sparePartMaterials.map(spm => [
-                { text: spm.sparePartMaterial?.name || '—', style: 'tableCell' },
-                { text: String(spm.cantidad || 0), style: 'tableCell', alignment: 'center' },
-                { text: spm.selectedProvider?.name || '—', style: 'tableCell' },
-                { text: formatCurrency(spm.ventaUnitaria), style: 'tableCell', alignment: 'right' },
-                { text: formatCurrency(spm.ventaTotal), style: 'tableCell', alignment: 'right' }
-              ])
-            ]
-          },
-          layout: {
-            fillColor: function (rowIndex, node, columnIndex) {
-              return (rowIndex === 0) ? '#E8EAED' : null;
-            },
-            hLineWidth: function (i, node) {
-              return (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5;
-            },
-            vLineWidth: function (i, node) {
-              return 0.5;
-            },
-            hLineColor: function (i, node) {
-              return '#9E9E9E';
-            },
-            vLineColor: function (i, node) {
-              return '#9E9E9E';
-            }
-          },
-          margin: [0,0,0,15]
-        }
-      ] : []),
+ // === REPUESTOS Y MATERIALES ===
+...(isValidArray(orden.sparePartMaterials) ? [
+  { text: "REPUESTOS", style: "section" },
+  {
+    table: {
+      headerRows: 1,
+      widths: ['40%','10%','10%','20%','20%'],
+      body: [
+        [
+          { text: 'Material', style: 'tableHeader' },
+          { text: 'Unidad',   style: 'tableHeader' },
+          { text: 'Cant.',    style: 'tableHeader', alignment:'center' },
+          { text: 'Venta U.', style: 'tableHeader', alignment:'right'  },
+          { text: 'Venta T.', style: 'tableHeader', alignment:'right'  }
+        ],
+        ...orden.sparePartMaterials.map(spm => [
+          { text: spm.sparePartMaterial?.name||'—',     style:'tableCell' },
+          { text: spm.sparePartMaterial?.measurementUnit||'—', style:'tableCell', alignment:'center' },
+          { text: String(spm.cantidad||0),              style:'tableCell', alignment:'center' },
+          { text: formatCurrency(spm.ventaUnitaria),    style:'tableCell', alignment:'right' },
+          { text: formatCurrency(spm.ventaTotal),       style:'tableCell', alignment:'right' }
+        ]),
+        [
+          { text: 'SUBTOTAL', colSpan: 4, style:'subtotalCell', alignment:'right' },
+          {},{},{},
+          { text: formatCurrency(orden.total?.subtotalVentasRepuestos||0),
+            style:'subtotalCell', alignment:'right' }
+        ]
+      ]
+    },
+    margin: [0,0,0,15]
+  }
+] : []),
 
-      // === MANO DE OBRA E INSUMOS  ===
-      ...(isValidArray(orden.manpowers) ? [
-        { text: "MANO DE OBRA ", style: "section" },
-        ...orden.manpowers.map((mp, index) => {
-          const elements = [];
-          
-          // Título de la mano de obra con número
-          elements.push({
-            text: `${index + 1}. MANO DE OBRA`,
-            style: 'manpowerTitle',
-            margin: [0, 10, 0, 5]
-          });
+// === MANO DE OBRA ===
+...(isValidArray(orden.manpowers) ? [
+  { text: "MANO DE OBRA", style: "section" },
+  {
+    table: {
+      headerRows: 1,
+      widths: ['60%','10%','15%','15%'],
+      body: [
+        [
+          { text: 'Descripción', style:'tableHeader' },
+          { text: 'Cant.',       style:'tableHeader', alignment:'center' },
+          { text: 'Venta U.',    style:'tableHeader', alignment:'right' },
+          { text: 'Venta T.',    style:'tableHeader', alignment:'right' }
+        ],
+        ...orden.manpowers.map(mp=>[
+          { text: `${mp.manpower?.name||'—'}${mp.useDetail?'\n'+mp.useDetail:''}`, style:'tableCell' },
+          { text: String(mp.cantidad||0),              style:'tableCell', alignment:'center' },
+          { text: formatCurrency(mp.ventaUnitaria),    style:'tableCell', alignment:'right' },
+          { text: formatCurrency(mp.ventaTotal),       style:'tableCell', alignment:'right' }
+        ]),
+        [
+          { text: 'SUBTOTAL', colSpan: 3, style:'subtotalCell', alignment:'right' },
+          {},{},
+          { text: formatCurrency(orden.total?.subtotalVentasManoObra||0),
+            style:'subtotalCell', alignment:'right' }
+        ]
+      ]
+    },
+    margin: [0,0,0,15]
+  }
+] : []),
 
-          // Información principal de mano de obra en formato de bloques
-          elements.push({
-            table: {
-              widths: [85,30, 65, 60, 60],
-              body: [
-                [
-                  { text: 'Descripción', style: 'manpowerHeader' },
-                  { text: 'Cant.', style: 'manpowerHeader' },
-                  { text: 'Contratista', style: 'manpowerHeader' },
-                  { text: 'Venta U.', style: 'manpowerHeader' },
-                  { text: 'Venta T.', style: 'manpowerHeader' }
-                ],
-                [
-                  { text: `${mp.manpower?.name || '—'}${mp.useDetail ? '\n' + mp.useDetail : ''}`, style: 'manpowerCell' },
-                  { text: String(mp.cantidad || 0), style: 'manpowerCell', alignment: 'center' },
-                  { text: mp.selectedContractor
-                    ? `${mp.selectedContractor.firstName} ${mp.selectedContractor.lastName}`
-                    : '—', style: 'manpowerCell' },
-                  { text: formatCurrency(mp.ventaUnitaria), style: 'manpowerCell', alignment: 'right' },
-                  { text: formatCurrency(mp.ventaTotal), style: 'manpowerCell', alignment: 'right' }
-                ]
-              ]
-            },
-            layout: {
-              fillColor: function (rowIndex, node, columnIndex) {
-                return (rowIndex === 0) ? '#E8EAED' : '#F5F6F7';
-              },
-              hLineWidth: function (i, node) {
-                return 1;
-              },
-              vLineWidth: function (i, node) {
-                return 1;
-              },
-              hLineColor: function (i, node) {
-                return '#9E9E9E';
-              },
-              vLineColor: function (i, node) {
-                return '#9E9E9E';
-              }
-            },
-            margin: [0, 0, 0, 8]
-          });
+// === RESUMEN FINANCIERO ===
+...(orden.total ? [
+  { text: "RESUMEN FINANCIERO", style: "section" },
+  {
+    table: {
+      headerRows: 1,
+      widths: ['60%','40%'],
+      body: [
+        [
+          { text: 'Concepto', style:'financialHeader' },
+          { text: 'Valor',    style:'financialHeader', alignment:'right' }
+        ],
+        [
+          { text: 'Subtotal Ventas Repuestos', style:'financialCell' },
+          { text: formatCurrency(orden.total.subtotalVentasRepuestos), style:'financialCell', alignment:'right' }
+        ],
+        [
+          { text: 'Subtotal Ventas Mano de Obra', style:'financialCell' },
+          { text: formatCurrency(orden.total.subtotalVentasManoObra), style:'financialCell', alignment:'right' }
+        ],
+        [
+          { text: 'Subtotal Ventas', style:'financialCellBold' },
+          { text: formatCurrency(orden.total.subtotalVentas), style:'financialCellBold', alignment:'right' }
+        ],
+        [
+          { text: 'IVA (19%)', style:'financialCell' },
+          { text: formatCurrency(orden.total.iva), style:'financialCell', alignment:'right' }
+        ],
+        [
+          { text: 'TOTAL VENTA', style:'financialTotal' },
+          { text: formatCurrency(orden.total.totalVenta), style:'financialTotal', alignment:'right' }
+        ]
+      ]
+    },
+    margin: [0,0,0,15]
+  }
+] : []),
 
-         
-            elements.push({ text: '', margin: [0, 0, 0, 15] }); 
-          
 
-          return elements;
-        }).flat()
-      ] : []),
-
-      // === COTIZACIÓN ===
-      ...(isValidArray(orden.pricings) ? [
-        { text: "INFORMACIÓN DE COTIZACIÓN", style: "section" },
-        {
-          stack: [
-            { text: [
-              { text: 'Número de Cotización: ', style: 'label' },
-              { text: orden.pricings[0].pricingNumber || 'Sin número', style: 'value' }
-            ]},
-            { text: [
-              { text: 'Fecha de Cotización: ', style: 'label' },
-              { text: formatDateOnly(orden.pricings[0].pricingDate), style: 'value' }
-            ]},
-            { text: [
-              { text: 'Cotizado por: ', style: 'label' },
-              { text: orden.pricings[0].pricedBy
-                ? `${orden.pricings[0].pricedBy.firstName} ${orden.pricings[0].pricedBy.lastName}`
-                : 'Sin especificar', style: 'value' }
-            ]}
-          ],
-          margin: [0, 0, 0, 15]
-        }
-      ] : []),
-
-      // === FACTURACIÓN ===
-      ...(isValidArray(orden.billings) ? [
-        { text: "INFORMACIÓN DE FACTURACIÓN", style: "section" },
-        {
-          stack: [
-            { text: [
-              { text: 'Número de Factura: ', style: 'label' },
-              { text: orden.billings[0].billingNumber || 'Sin número', style: 'value' }
-            ]},
-            { text: [
-              { text: 'Fecha de Facturación: ', style: 'label' },
-              { text: formatDateOnly(orden.billings[0].billingDate), style: 'value' }
-            ]},
-            { text: [
-              { text: 'Facturado por: ', style: 'label' },
-              { text: orden.billings[0].billedBy
-                ? `${orden.billings[0].billedBy.firstName} ${orden.billings[0].billedBy.lastName}`
-                : 'Sin especificar', style: 'value' }
-            ]},
-            { text: [
-              { text: 'Número de Acta: ', style: 'label' },
-              { text: orden.billings[0].actNumber || 'Sin número de acta', style: 'value' }
-            ]}
-          ],
-          margin: [0, 0, 0, 15]
-        }
-      ] : []),
-
-      // === RESUMEN FINANCIERO ===
-      ...(orden.total ? [
-        { text: "RESUMEN FINANCIERO", style: "section" },
-        {
-          table: {
-            headerRows: 1,
-            widths: ['*', 80],
-            body: [
-              [
-                { text: 'Concepto', style: 'financialHeader' },
-                { text: 'Valor', style: 'financialHeader', alignment: 'right' }
-              ],
-             
-              [
-                { text: 'Subtotal Ventas Repuestos', style: 'financialCell' },
-                { text: formatCurrency(orden.total.subtotalVentasRepuestos), style: 'financialCell', alignment: 'right' }
-              ],
-              
-              [
-                { text: 'Subtotal Ventas Mano de Obra', style: 'financialCell' },
-                { text: formatCurrency(orden.total.subtotalVentasManoObra), style: 'financialCell', alignment: 'right' }
-              ],
-              
-              [
-                { text: 'Subtotal Ventas', style: 'financialCellBold' },
-                { text: formatCurrency(orden.total.subtotalVentas), style: 'financialCellBold', alignment: 'right' }
-              ],
-              [
-                { text: 'IVA (19%)', style: 'financialCell' },
-                { text: formatCurrency(orden.total.iva), style: 'financialCell', alignment: 'right' }
-              ],
-              [
-                { text: 'TOTAL VENTA', style: 'financialTotal' },
-                { text: formatCurrency(orden.total.totalVenta), style: 'financialTotal', alignment: 'right' }
-              ]
-            ]
-          },
-          layout: {
-            fillColor: function (rowIndex, node, columnIndex) {
-              if (rowIndex === 0) return '#E8EAED';
-              if (rowIndex === node.table.body.length - 1) return '#CFD8DC';
-              if (rowIndex === node.table.body.length - 4 || rowIndex === node.table.body.length - 3) return '#F5F6F7';
-              return null;
-            },
-            hLineWidth: function (i, node) {
-              return (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5;
-            },
-            vLineWidth: function (i, node) {
-              return 0.5;
-            },
-            hLineColor: function (i, node) {
-              return '#9E9E9E';
-            },
-            vLineColor: function (i, node) {
-              return '#9E9E9E';
-            }
-          }
-        }
-      ] : [])
     ],
     styles: {
       header: {
@@ -397,6 +297,9 @@ export async function descargarOrdenCompletaPDFClinete_pdfmake(orden) {
       },
       tableCell: {
         fontSize: 9, color: '#2C3E50'
+      },
+      subtotalCell: {
+        fontSize: 9, color: '#2C3E50', bold: true
       },
       
       // Estilos específicos para mano de obra

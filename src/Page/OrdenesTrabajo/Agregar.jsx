@@ -7,6 +7,8 @@ import { Listbox } from '@headlessui/react'
 import { CheckIcon, ChevronUpDownIcon } from '@heroicons/react/24/solid'
 
 
+
+
 const NuevaOrdenTrabajo = ({ user }) => {
     const { id } = useParams();
     const isEdit = Boolean(id);
@@ -109,6 +111,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
     const [contactosDisponibles, setContactosDisponibles] = useState([]);
     const [supplyOptions, setSupplyOptions] = useState([])
     const [contactosSeleccionados, setContactosSeleccionados] = useState([]);
+    const roundToHundred = (value) => Math.ceil(value / 100) * 100;
 
     const [userOffset, setUserOffset] = useState(0);
     const [hasMoreUsers, setHasMoreUsers] = useState(true);
@@ -432,6 +435,9 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
 
 
+
+
+
     useEffect(() => {
         if (!isEdit || !id || !opcionesCargadas) return;
 
@@ -553,39 +559,61 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     setRepuestos(repuestosData);
                 }
 
-                // Cargar mano de obra
                 if (Array.isArray(orden.manpowers)) {
-                    const manoObraData = orden.manpowers.map((mp, idx) => ({
-                        id: idx + 1,
-                        idManpower: mp.manpower?.idManpower || '',
-                        descripcion: mp.manpower?.name || '',
-
-                        useDetail: mp.useDetail || '',
-                        cantidad: mp.cantidad || 0,
-                        unitaryCost: mp.unitaryCost ?? 0,
-                        contratista: mp.selectedContractor?.idUser
-                            || mp.contractor?.idUser
-                            || mp.manpower?.contractor?.idUser
-                            || '',
-                        totalCost: mp.costoTotal || 0,
-                        sellFactor: mp.factorVenta || 0,
-                        unitSell: mp.ventaUnitaria || 0,
-                        totalSell: mp.ventaTotal || 0,
+                    const manoObraData = orden.manpowers.map((mp, idx) => {
+                        const cantidad = Number(mp.cantidad) || 0;
+                        const costoManoUnit = Number(mp.unitaryCost) || 0;
+                        const factorVenta = Number(mp.factorVenta) || 1;
 
 
-                        insumos: Array.isArray(mp.supplies)
-                            ? mp.supplies.map(sup => ({
+                        // Insumos normalizados
+                        const insumos = Array.isArray(mp.supplies)
+                            ? mp.supplies.map(sup => {
+                                const qty = Number(sup.cantidad) || 0;
+                                const cu = Number(sup.unitaryCost) || 0;
+                                const ct = Number(sup.costoTotal) || qty * cu;
+                                return {
+                                    supply: sup.supply?.idSupply || '',
+                                    useDetail: sup.useDetail || '',
+                                    selectedProvider: sup.selectedProvider?.idProvider || '',
+                                    cantidad: qty,
+                                    unitaryCost: cu,
+                                    costoTotal: ct
+                                };
+                            })
+                            : [];
 
-                                supply: sup.supply?.idSupply || '',
-                                useDetail: sup.useDetail || '',
-                                selectedProvider: sup.selectedProvider?.idProvider || '',
-                                cantidad: sup.cantidad || '',
-                                unitaryCost: sup.unitaryCost || '',
-                                costoTotal: sup.costoTotal || (sup.cantidad * sup.unitaryCost),
+                        // Sumas y unidades
+                        const totalInsumos = insumos.reduce((s, i) => s + i.costoTotal, 0);
+                        const unitInsumo = cantidad > 0 ? totalInsumos / cantidad : 0;
+                        const unitConInsumos = costoManoUnit + unitInsumo;
 
-                            }))
-                            : []
-                    }));
+                        // *** aquí aplicamos roundToHundred ***
+                        const unitSell = roundToHundred(unitConInsumos / factorVenta);
+                        const totalSell = roundToHundred(unitSell * cantidad);
+
+                        return {
+                            id: idx + 1,
+                            idManpower: mp.manpower?.idManpower || '',
+                            descripcion: mp.manpower?.name || '',
+                            useDetail: mp.useDetail || '',
+                            cantidad,
+                            unitaryCost: costoManoUnit,
+                            contratista:
+                                mp.selectedContractor?.idUser ||
+                                mp.contractor?.idUser ||
+                                '',
+                            totalCost: Number((costoManoUnit * cantidad).toFixed(2)),
+                            unitaryCostInsumo: Number(unitInsumo.toFixed(2)),
+                            totalCostInsumos: Number(totalInsumos.toFixed(2)),
+                            unitCostWithSupplies: Number(unitConInsumos.toFixed(2)),
+                            totalCostWithSupplies: Number((unitConInsumos * cantidad).toFixed(2)),
+                            sellFactor: factorVenta,
+                            unitSell,
+                            totalSell,
+                            insumos
+                        };
+                    });
                     setManoDeObra(manoObraData);
                 }
 
@@ -637,40 +665,51 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
 
     const calcularTotales = () => {
-        // Repuestos (sin cambiar)
-        const subtotalCostosRepuestos = repuestos.reduce((sum, r) => sum + (r.costoTotal || 0), 0);
-        const subtotalVentasRepuestos = repuestos.reduce((sum, r) => sum + (r.ventaTotal || 0), 0);
+  // 1) Repestos
+  const rawSubRep   = repuestos.reduce((sum, r) => sum + (r.ventaTotal || 0), 0);
+  const subtotalVentasRepuestos = roundToHundred(rawSubRep);
 
-        // Mano de obra + sus insumos
-        const subtotalCostosManoObra = manoDeObra.reduce((sum, m) => {
-            const costoMano = m.totalCost || 0;
-            const costoInsumos = (m.insumos || []).reduce((s, i) => s + (i.costoTotal || 0), 0);
-            return sum + costoMano + costoInsumos;
-        }, 0);
+  // 2) Mano de obra (venta con insumos)
+  const rawSubMan   = manoDeObra.reduce((sum, m) => sum + (m.totalSell || 0), 0);
+  const subtotalVentasManoObra = roundToHundred(rawSubMan);
 
-        const subtotalVentasManoObra = manoDeObra.reduce((sum, m) => {
-            const ventaMano = m.totalSell || 0;
+  // 3) Subtotal ventas
+  const subtotalVentas = subtotalVentasRepuestos + subtotalVentasManoObra;
 
-            return sum + ventaMano;
-        }, 0);
+  // 4) IVA al 19%
+  const rawIva = subtotalVentas * 0.19;
+  const iva    = roundToHundred(rawIva);
 
-        // Totales generales
-        const subtotalCostos = subtotalCostosRepuestos + subtotalCostosManoObra;
-        const subtotalVentas = subtotalVentasRepuestos + subtotalVentasManoObra;
-        const iva = Math.round(subtotalVentas * 0.19 * 100) / 100;
-        const totalVenta = Math.round((subtotalVentas + iva) * 100) / 100;
+  // 5) Total venta
+  const totalVenta = roundToHundred(subtotalVentas + iva);
 
-        return {
-            subtotalCostosRepuestos,
-            subtotalVentasRepuestos,
-            subtotalCostosManoObra,
-            subtotalVentasManoObra,
-            subtotalCostos,
-            subtotalVentas,
-            iva,
-            totalVenta
-        };
-    };
+  return {
+    subtotalCostosRepuestos:   roundToHundred(
+      repuestos.reduce((sum, r) => sum + (r.costoTotal || 0), 0)
+    ),
+    subtotalVentasRepuestos,
+    subtotalCostosManoObra:    roundToHundred(
+      manoDeObra.reduce((sum, m) => {
+        const costoMano   = m.totalCost || 0;
+        const costoInsumos= (m.insumos||[]).reduce((s,i)=>s+(i.costoTotal||0),0);
+        return sum + costoMano + costoInsumos;
+      }, 0)
+    ),
+    subtotalVentasManoObra,
+    subtotalCostos:            roundToHundred(
+      // si quieres los costos generales al centenar también
+      repuestos.reduce((sum, r) => sum + (r.costoTotal || 0), 0) +
+      manoDeObra.reduce((sum, m) => {
+        const costoMano   = m.totalCost || 0;
+        const costoInsumos= (m.insumos||[]).reduce((s,i)=>s+(i.costoTotal||0),0);
+        return sum + costoMano + costoInsumos;
+      }, 0)
+    ),
+    subtotalVentas:            roundToHundred(subtotalVentas),
+    iva,
+    totalVenta
+  };
+};
 
     const procesarContactosCliente = (clienteId) => {
         const contactosCliente = allContacts.filter(contacto =>
@@ -886,30 +925,58 @@ const NuevaOrdenTrabajo = ({ user }) => {
         setManoDeObra(prev =>
             prev.map(m => {
                 if (m.id !== manoId) return m;
-                const nuevos = [...(m.insumos || [])];
-                const ins = { ...nuevos[idx] };
 
-                if (campo === 'supply') {
-                    ins.supply = valor;
-                    ins.unitaryCost = supplyOptions.find(s => s.idSupply === valor)?.unitaryCost || 0;
-                } else if (campo === 'selectedProvider') {
-                    ins.selectedProvider = valor;
-                } else if (campo === 'cantidad' || campo === 'unitaryCost') {
-                    ins[campo] = Number(valor);
-                } else {
-                    ins[campo] = valor;
+                // 1) Actualizo el insumo modificado
+                const nuevosInsumos = [...(m.insumos || [])];
+                const ins = { ...nuevosInsumos[idx], [campo]: valor };
+
+                // 2) Si cambió cantidad o cost.unit, recalculo costoTotal del insumo
+                if (campo === 'cantidad' || campo === 'unitaryCost') {
+                    const qty = Number(ins.cantidad) || 0;
+                    const cost = Number(ins.unitaryCost) || 0;
+                    ins.costoTotal = Number((qty * cost).toFixed(2));
                 }
+                nuevosInsumos[idx] = ins;
 
-                // Recalcular totales de insumo:
-                ins.costoTotal = ins.cantidad * ins.unitaryCost;
+                // 3) Recalculo toda la fila de Mano de Obra
+                const cantidad = Number(m.cantidad) || 0;
+                const costoUnitMano = Number(m.unitaryCost) || 0;
+                const factorVenta = Number(m.sellFactor) || 1;
 
+                // Suma de todos los insumos
+                const totalInsumos = nuevosInsumos.reduce((s, i) => s + (Number(i.costoTotal) || 0), 0);
+                const unitInsumo = cantidad > 0 ? totalInsumos / cantidad : 0;
 
+                // Cálculos de Mano pura
+                const totalMano = costoUnitMano * cantidad;
 
-                nuevos[idx] = ins;
-                return { ...m, insumos: nuevos };
+                // Mano + Insumos
+                const unitManoMasIns = costoUnitMano + unitInsumo;
+                const totalManoMasIns = unitManoMasIns * cantidad;
+
+                // Venta redondeada al centenar
+                const unitSellRaw = unitManoMasIns / factorVenta;
+                const unitSell = roundToHundred(unitSellRaw);
+                const totalSell = roundToHundred(unitSell * cantidad);
+
+                return {
+                    ...m,
+                    insumos: nuevosInsumos,
+                    // costos
+                    totalCost: Number(totalMano.toFixed(2)),
+                    unitaryCostInsumo: Number(unitInsumo.toFixed(2)),
+                    totalCostInsumos: Number(totalInsumos.toFixed(2)),
+                    unitCostWithSupplies: Number(unitManoMasIns.toFixed(2)),
+                    totalCostWithSupplies: Number(totalManoMasIns.toFixed(2)),
+                    // venta ya redondeada
+                    unitSell,
+                    totalSell,
+                };
             })
         );
     };
+
+
 
     const eliminarInsumo = (manoId, idx) => {
         setManoDeObra(prev =>
@@ -1048,23 +1115,31 @@ const NuevaOrdenTrabajo = ({ user }) => {
         const nuevoId = manoDeObra.length
             ? Math.max(...manoDeObra.map(m => m.id)) + 1
             : 1;
+
         setManoDeObra([
             ...manoDeObra,
             {
                 id: nuevoId,
-                descripcion: '',
-                tipo: '',
+                idManpower: '',
                 useDetail: '',
                 cantidad: '',
+                unitaryCost: '',
                 totalCost: 0,
-                sellFactor: 0,
+                unitaryCostInsumo: 0,
+                totalCostInsumos: 0,
+                unitCostWithSupplies: 0,
+                totalCostWithSupplies: 0,
+                sellFactor: 1,
                 unitSell: 0,
                 totalSell: 0,
-                idManpower: '',
-                contratista: isContractor ? userId : ''
+                insumos: [],
+                contratista: isContractor ? userId : '',
+
+
             }
         ]);
     };
+
 
     const eliminarManoDeObra = (id) => {
         setManoDeObra(prev =>
@@ -1077,36 +1152,43 @@ const NuevaOrdenTrabajo = ({ user }) => {
     const actualizarManoDeObra = (id, campo, valor) => {
         setManoDeObra(prev =>
             prev.map(m => {
-                if (isContractor && m.contratista !== userId) return m;
-                if (m.id === id) {
-                    let copia = { ...m, [campo]: valor };
+                if (m.id !== id) return m;
 
-                    if (campo === "idManpower") {
-                        const manpowerInfo = manpowers.find(mp => mp.idManpower === valor);
-                        if (manpowerInfo) {
-                            copia = {
-                                ...copia,
-                                idManpower: manpowerInfo.idManpower,
-                                descripcion: manpowerInfo.name,
-                                tipo: manpowerInfo.type,
-                            };
-                        }
-                    }
+                // 1) actualiza el campo
+                const copia = { ...m, [campo]: valor };
 
-                    const cantidad = parseFloat(copia.cantidad) || 0;
-                    const unitaryCost = parseFloat(copia.unitaryCost) || 0;
-                    const sellFactor = parseFloat(copia.sellFactor) || 0;
+                // 2) parseos básicos
+                const cantidad = Number(copia.cantidad) || 0;
+                const costMano = Number(copia.unitaryCost) || 0;
+                const factor = Number(copia.sellFactor) || 1;
+                const totalInsumos = (copia.insumos || [])
+                    .reduce((s, i) => s + (Number(i.costoTotal) || 0), 0);
+                const unitInsumo = cantidad > 0 ? totalInsumos / cantidad : 0;
+                const unitConIns = costMano + unitInsumo;
 
-                    copia.totalCost = Math.round(cantidad * unitaryCost);
-                    copia.unitSell = sellFactor ? Math.round(unitaryCost / sellFactor) : 0;
-                    copia.totalSell = Math.round(cantidad * copia.unitSell);
+                // 3) venta redondeada
+                const unitSell = roundToHundred(unitConIns / factor);
+                const totalSell = roundToHundred(unitSell * cantidad);
 
-                    return copia;
-                }
-                return m;
+                return {
+                    ...copia,
+                    totalCost: Number((costMano * cantidad).toFixed(2)),
+                    unitaryCostInsumo: Number(unitInsumo.toFixed(2)),
+                    totalCostInsumos: Number(totalInsumos.toFixed(2)),
+                    unitCostWithSupplies: Number(unitConIns.toFixed(2)),
+                    totalCostWithSupplies: Number((unitConIns * cantidad).toFixed(2)),
+                    unitSell,
+                    totalSell,
+                };
             })
         );
     };
+
+
+
+
+
+
 
 
     const handleVehiculeSelect = e => {
@@ -1183,32 +1265,35 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
 
 
+    // Repuestos
+    const subtotalCostosRepuestosRaw = repuestos
+        .reduce((acc, r) => acc + (r.costoTotal || 0), 0);
+    const subtotalCostosRepuestos = roundToHundred(subtotalCostosRepuestosRaw);
 
-    const subtotalCostosRepuestos = repuestos.reduce(
-        (acc, r) => acc + (r.costoTotal || 0),
-        0
-    );
+    const subtotalVentasRepuestosRaw = repuestos
+        .reduce((acc, r) => acc + (r.ventaTotal || 0), 0);
+    const subtotalVentasRepuestos = roundToHundred(subtotalVentasRepuestosRaw);
 
-    const subtotalVentasRepuestos = repuestos.reduce(
-        (acc, r) => acc + (r.ventaTotal || 0),
-        0
-    );
-    const subtotalCostosManoObra = manoDeObra.reduce((sum, m) => {
-        const costoMano = m.totalCost || 0;
-        const costoInsumos = (m.insumos || []).reduce((s, i) => s + (i.costoTotal || 0), 0);
-        return sum + costoMano + costoInsumos;
-    }, 0);
+    // Mano de obra
+    const subtotalCostosManoObraRaw = manoDeObra
+        .reduce((sum, m) => sum + (m.totalCostWithSupplies || 0), 0);
+    const subtotalCostosManoObra = roundToHundred(subtotalCostosManoObraRaw);
 
-    const subtotalVentasManoObra = manoDeObra.reduce((sum, m) => {
-        const ventaMano = m.totalSell || 0;
+    const subtotalVentasManoObraRaw = manoDeObra
+        .reduce((sum, m) => sum + (m.totalSell || 0), 0);
+    const subtotalVentasManoObra = roundToHundred(subtotalVentasManoObraRaw);
 
-        return sum + ventaMano;
-    }, 0);
-
+    // Totales generales
     const subtotalCostos = subtotalCostosRepuestos + subtotalCostosManoObra;
-    const subtotalVentas = subtotalVentasRepuestos + subtotalVentasManoObra;
-    const iva = Math.round(subtotalVentas * 0.19 * 100) / 100;
-    const totalVenta = Math.round((subtotalVentas + iva) * 100) / 100;
+
+    const subtotalVentasRaw = subtotalVentasRepuestos + subtotalVentasManoObra;
+    const subtotalVentas = roundToHundred(subtotalVentasRaw);
+
+    const ivaRaw = subtotalVentas * 0.19;
+    const iva = roundToHundred(ivaRaw);
+
+    const totalVentaRaw = subtotalVentas + iva;
+    const totalVenta = roundToHundred(totalVentaRaw);
 
 
     const roleOptions = userOptions
@@ -2097,20 +2182,26 @@ const NuevaOrdenTrabajo = ({ user }) => {
                         <div className="overflow-x-auto">
                             <table className="min-w-full divide-y divide-gray-200 table-fixed">
                                 <thead>
-                                    <tr className="bg-gray-50">
-                                        <th className="w-48 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Descripción</th>
-                                        <th className="w-32 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Detalle</th>
-                                        <th className="w-24 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cantidad</th>
-                                        <th className="w-36 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Contratista</th>
-                                        <th className="w-28 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Costo Unitario</th>
-                                        <th className="w-28 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Costo Total</th>
-                                        <th className="w-28 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Factor de Venta</th>
-                                        <th className="w-28 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Venta Unitaria</th>
-                                        <th className="w-28 px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Venta Total</th>
-                                        <th className="w-24 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Insumos</th>
-                                        <th className="w-16 px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase">Acciones</th>
+
+                                    <tr className="bg-gray-50 text-xs text-gray-500 uppercase">
+                                        <th className="w-48 px-3 py-2 text-left font-medium">Descripción</th>
+                                        <th className="w-32 px-3 py-2 text-left font-medium">Detalle</th>
+                                        <th className="w-20 px-3 py-2 text-left font-medium">Cant.</th>
+                                        <th className="w-40 px-3 py-2 text-left font-medium">Contratista</th>
+                                        <th className="w-28 px-3 py-2 text-left font-medium">Costo U. Mano</th>
+                                        <th className="w-32 px-3 py-2 text-left font-medium">Costo T. Mano</th>
+                                        <th className="w-32 px-3 py-2 text-left font-medium">Costo U. Insumo</th>
+                                        <th className="w-32 px-3 py-2 text-left font-medium">Costo T. Insumos</th>
+                                        <th className="w-32 px-3 py-2 text-left font-medium">Costo U. Mano + Ins</th>
+                                        <th className="w-32 px-3 py-2 text-left font-medium">Costo T. Mano + Ins</th>
+                                        <th className="w-24 px-3 py-2 text-left font-medium">Factor</th>
+                                        <th className="w-28 px-3 py-2 text-left font-medium">Venta U. + Ins</th>
+                                        <th className="w-32 px-3 py-2 text-left font-medium">Venta T. + Ins</th>
+                                        <th className="w-24 px-3 py-2 text-center font-medium">Insumos</th>
+                                        <th className="w-16 px-3 py-2 text-center font-medium">Acción</th>
                                     </tr>
                                 </thead>
+
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {[...manoDeObraVisibles]
                                         .sort((a, b) => {
@@ -2210,16 +2301,17 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                             inputMode="numeric"
                                                             pattern="\d*"
                                                             className="w-24 p-2 border border-gray-300 rounded text-left bg-white"
-                                                            value={item.unitaryCost || ''}
-                                                            onChange={e =>
-                                                                actualizarManoDeObra(
-                                                                    item.id,
-                                                                    'unitaryCost',
-                                                                    parseFloat(e.target.value) || 0
-                                                                )
-                                                            }
+                                                            value={item.unitaryCost !== ''
+                                                                ? Number(item.unitaryCost).toLocaleString('es-CO')
+                                                                : ''}
+                                                            onChange={e => {
+                                                                const raw = e.target.value.replace(/\D/g, '');
+                                                                const val = raw === '' ? '' : parseFloat(raw);
+                                                                actualizarManoDeObra(item.id, 'unitaryCost', val);
+                                                            }}
                                                         />
                                                     </td>
+
 
                                                     {/* ── Costo Total ─────────────────────────────────────────── */}
                                                     <td className="w-28 px-3 py-3">
@@ -2227,9 +2319,52 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                             type="text"
                                                             readOnly
                                                             className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
-                                                            value={(item.totalCost ?? 0).toLocaleString('es-CO')}
+                                                            value={item.totalCost.toLocaleString()}
                                                         />
                                                     </td>
+
+                                                    <td className="w-28 px-3 py-3" >
+
+                                                        <input
+                                                            className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
+                                                            type="text"
+                                                            readOnly
+                                                            value={item.unitaryCostInsumo?.toLocaleString('es-CO')}
+                                                        >
+
+                                                        </input>
+
+                                                    </td>
+                                                    <td className="w-28 px-3 py-3">
+                                                        <input
+                                                            className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
+                                                            type="text"
+                                                            readOnly
+                                                            value={item.totalCostInsumos?.toLocaleString('es-CO')}
+                                                        >
+
+                                                        </input>
+
+                                                    </td>
+
+                                                    <td className="w-32 px-3 py-3">
+                                                        <input
+                                                            type="text"
+                                                            readOnly
+                                                            className="w-28 p-2 border border-gray-300 rounded text-right bg-gray-100"
+                                                            value={((item.unitCostWithSupplies ?? 0).toLocaleString('es-CO'))}
+                                                        />
+                                                    </td>
+
+                                                    <td className="w-32 px-3 py-3">
+                                                        <input
+                                                            type="text"
+                                                            readOnly
+                                                            className="w-28 p-2 border border-gray-300 rounded text-right bg-gray-100"
+                                                            value={((item.totalCostWithSupplies ?? 0).toLocaleString('es-CO'))}
+                                                        />
+                                                    </td>
+
 
                                                     {/* ── Factor de Venta ─────────────────────────────────────── */}
                                                     <td className="w-28 px-3 py-3">
@@ -2252,23 +2387,24 @@ const NuevaOrdenTrabajo = ({ user }) => {
                                                         />
                                                     </td>
 
-                                                    {/* ── Venta Unitaria ──────────────────────────────────────── */}
                                                     <td className="w-28 px-3 py-3">
                                                         <input
-                                                            type="text"
+                                                            type="number"
                                                             readOnly
-                                                            className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
-                                                            value={(item.unitSell ?? 0).toLocaleString('es-CO')}
+                                                            className="w-24 p-2 border border-gray-300 rounded text-left bg-white"
+                                                            value={item.unitSell}
+
                                                         />
                                                     </td>
 
-                                                    {/* ── Venta Total ─────────────────────────────────────────── */}
+                                                    {/* Venta total */}
                                                     <td className="w-28 px-3 py-3">
                                                         <input
-                                                            type="text"
+                                                            type="number"
                                                             readOnly
-                                                            className="w-24 p-2 border border-gray-300 rounded text-right bg-gray-100"
-                                                            value={(item.totalSell ?? 0).toLocaleString('es-CO')}
+                                                            className="w-24 p-2 border border-gray-300 rounded text-left bg-white"
+                                                            value={item.totalSell}
+
                                                         />
                                                     </td>
 

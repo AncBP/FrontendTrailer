@@ -24,6 +24,34 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
     return `$${n.toLocaleString("es-ES")}`;
   };
 
+  // Función para calcular subtotales de repuestos
+  const calcularSubtotalesRepuestos = (sparePartMaterials) => {
+    if (!isValidArray(sparePartMaterials)) return { costoTotal: 0, ventaTotal: 0 };
+    
+    const costoTotal = sparePartMaterials.reduce((sum, item) => sum + (item.costoTotal || 0), 0);
+    const ventaTotal = sparePartMaterials.reduce((sum, item) => sum + (item.ventaTotal || 0), 0);
+    
+    return { costoTotal, ventaTotal };
+  };
+
+  // Función para calcular subtotales de mano de obra
+  const calcularSubtotalesManoObra = (manpower) => {
+    if (!manpower) return { costoTotal: 0, ventaTotal: 0 };
+    
+    const costoTotal = manpower.costoTotal || 0;
+    const ventaTotal = manpower.ventaTotal || 0;
+    
+    return { costoTotal, ventaTotal };
+  };
+
+  // Función para calcular subtotales de insumos
+  const calcularSubtotalesInsumos = (supplies) => {
+    if (!isValidArray(supplies)) return { costoTotal: 0 };
+    
+    const costoTotal = supplies.reduce((sum, item) => sum + (item.costoTotal || 0), 0);
+    
+    return { costoTotal };
+  };
 
   async function getBase64ImageFromURL(url) {
     const res = await fetch(url);
@@ -196,11 +224,11 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
         {
           table: {
             headerRows: 1,
-            widths: [85, 25, 65, 50, 50, 50, 50],
+            widths: [70, 35, 20, 55, 45, 45, 45, 45],
             body: [
               [
                 { text: 'Material', style: 'tableHeader' },
-
+                { text: 'Unidad', style: 'tableHeader' },
                 { text: 'Cant.', style: 'tableHeader' },
                 { text: 'Proveedor', style: 'tableHeader' },
                 { text: 'Costo U.', style: 'tableHeader' },
@@ -210,18 +238,30 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
               ],
               ...orden.sparePartMaterials.map(spm => [
                 { text: spm.sparePartMaterial?.name || '—', style: 'tableCell' },
+                { text: spm.sparePartMaterial?.measurementUnit || '—', style: 'tableCell' },
                 { text: String(spm.cantidad || 0), style: 'tableCell', alignment: 'center' },
                 { text: spm.selectedProvider?.name || '—', style: 'tableCell' },
                 { text: formatCurrency(spm.unitaryCost), style: 'tableCell', alignment: 'right' },
                 { text: formatCurrency(spm.costoTotal), style: 'tableCell', alignment: 'right' },
                 { text: formatCurrency(spm.ventaUnitaria), style: 'tableCell', alignment: 'right' },
                 { text: formatCurrency(spm.ventaTotal), style: 'tableCell', alignment: 'right' }
-              ])
+              ]),
+              // Fila de subtotales - alineado con las columnas Costo T. y Venta T.
+              [
+                { text: 'SUBTOTAL REPUESTOS', style: 'subtotalLabel', colSpan: 4 },
+                {}, {}, {},
+                { text: '', style: 'subtotalValue' },
+                { text: formatCurrency(calcularSubtotalesRepuestos(orden.sparePartMaterials).costoTotal), style: 'subtotalValue', alignment: 'right' },
+                { text: '', style: 'subtotalValue' },
+                { text: formatCurrency(calcularSubtotalesRepuestos(orden.sparePartMaterials).ventaTotal), style: 'subtotalValue', alignment: 'right' }
+              ]
             ]
           },
           layout: {
             fillColor: function (rowIndex, node, columnIndex) {
-              return (rowIndex === 0) ? '#E8EAED' : null;
+              if (rowIndex === 0) return '#E8EAED';
+              if (rowIndex === node.table.body.length - 1) return '#CFD8DC';
+              return null;
             },
             hLineWidth: function (i, node) {
               return (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5;
@@ -256,7 +296,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
           // Información principal de mano de obra en formato de bloques
           elements.push({
             table: {
-              widths: [85, 25, 65, 50, 50, 50, 50],
+              widths: [70, 20, 55, 45, 45, 45, 45],
               body: [
                 [
                   { text: 'Descripción', style: 'manpowerHeader' },
@@ -279,12 +319,23 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                   { text: formatCurrency(mp.costoTotal), style: 'manpowerCell', alignment: 'right' },
                   { text: formatCurrency(mp.ventaUnitaria), style: 'manpowerCell', alignment: 'right' },
                   { text: formatCurrency(mp.ventaTotal), style: 'manpowerCell', alignment: 'right' }
+                ],
+                // Subtotal de mano de obra - alineado con las columnas Costo T. y Venta T.
+                [
+                  { text: 'SUBTOTAL MANO DE OBRA', style: 'subtotalLabel', colSpan: 3 },
+                  {}, {},
+                  { text: '', style: 'subtotalValue' },
+                  { text: formatCurrency(calcularSubtotalesManoObra(mp).costoTotal), style: 'subtotalValue', alignment: 'right' },
+                  { text: '', style: 'subtotalValue' },
+                  { text: formatCurrency(calcularSubtotalesManoObra(mp).ventaTotal), style: 'subtotalValue', alignment: 'right' }
                 ]
               ]
             },
             layout: {
               fillColor: function (rowIndex, node, columnIndex) {
-                return (rowIndex === 0) ? '#E8EAED' : '#F5F6F7';
+                if (rowIndex === 0) return '#E8EAED';
+                if (rowIndex === node.table.body.length - 1) return '#CFD8DC';
+                return '#F5F6F7';
               },
               hLineWidth: function (i, node) {
                 return 1;
@@ -310,9 +361,11 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
               margin: [15, 5, 0, 3]
             });
 
+            const suppliesSubtotal = calcularSubtotalesInsumos(mp.supplies);
+
             elements.push({
               table: {
-                widths: [85, 45, 25, 65, 50, 50],
+                widths: [70, 35, 20, 55, 45, 45],
                 body: [
                   [
                     { text: 'Producto', style: 'suppliesHeader' },
@@ -321,7 +374,6 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                     { text: 'Proveedor', style: 'suppliesHeader' },
                     { text: 'Costo U.', style: 'suppliesHeader' },
                     { text: 'Costo T.', style: 'suppliesHeader' }
-
                   ],
                   ...mp.supplies.map(s => [
                     { text: s.supply?.name || '—', style: 'suppliesCell' },
@@ -330,13 +382,21 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                     { text: s.selectedProvider?.name || '—', style: 'suppliesCell' },
                     { text: formatCurrency(s.unitaryCost), style: 'suppliesCell', alignment: 'right' },
                     { text: formatCurrency(s.costoTotal), style: 'suppliesCell', alignment: 'right' }
-
-                  ])
+                  ]),
+                  // Subtotal de insumos - alineado con la columna Costo T.
+                  [
+                    { text: 'SUBTOTAL INSUMOS', style: 'subtotalLabel', colSpan: 4 },
+                    {}, {}, {},
+                    { text: '', style: 'subtotalValue' },
+                    { text: formatCurrency(suppliesSubtotal.costoTotal), style: 'subtotalValue', alignment: 'right' }
+                  ]
                 ]
               },
               layout: {
                 fillColor: function (rowIndex, node, columnIndex) {
-                  return (rowIndex === 0) ? '#DDE2E8' : '#F0F2F5';
+                  if (rowIndex === 0) return '#DDE2E8';
+                  if (rowIndex === node.table.body.length - 1) return '#CFD8DC';
+                  return '#F0F2F5';
                 },
                 hLineWidth: function (i, node) {
                   return (i === 0 || i === 1) ? 1 : 0.5;
@@ -527,6 +587,14 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
       },
       tableCell: {
         fontSize: 9, color: '#2C3E50'
+      },
+
+      // Estilos para subtotales
+      subtotalLabel: {
+        fontSize: 9, bold: true, color: '#2C3E50', fillColor: '#CFD8DC'
+      },
+      subtotalValue: {
+        fontSize: 9, bold: true, color: '#2C3E50', fillColor: '#CFD8DC'
       },
 
       // Estilos específicos para mano de obra
