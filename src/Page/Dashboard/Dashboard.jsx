@@ -37,8 +37,8 @@ const Dashboard = ({ user }) => {
   const [cotPendientes, setCotPendientes] = useState(0);
   const [tiempoPromedio, setTiempoPromedio] = useState(0);
 
-  const [allOrdersData, setAllOrdersData] = useState([]); // All fetched orders (unfiltered by 'showActiveOnly')
-  const [ordenesRecientes, setOrdenesRecientes] = useState([]); // Used for pagination of ALL orders
+  const [allOrdersData, setAllOrdersData] = useState([]); 
+  const [ordenesRecientes, setOrdenesRecientes] = useState([]); 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [itemsPerPage] = useState(5);
@@ -53,19 +53,19 @@ const Dashboard = ({ user }) => {
   const [customerSegmentData, setCustomerSegmentData] = useState({});
   const [clientesSegmentados, setClientesSegmentados] = useState({});
 
-  // Metrics that will be affected by global filter
+  
   const [mostUsedParts, setMostUsedParts] = useState([]);
   const [mostUsedSupplies, setMostUsedSupplies] = useState([]);
   const [dailyOrderData, setDailyOrderData] = useState({ labels: [], datasets: [] });
   const [contractorOrderCounts, setContractorOrderCounts] = useState([]);
-  const [topAssignedDrivers, setTopAssignedDrivers] = useState([]); // New state for top drivers
-  const [totalUniqueAssignedDrivers, setTotalUniqueAssignedDrivers] = useState(0); // Renamed from assignedDriversCount for clarity
+  const [topAssignedDrivers, setTopAssignedDrivers] = useState([]); 
+  const [totalUniqueAssignedDrivers, setTotalUniqueAssignedDrivers] = useState(0); 
 
-  // --- ESTADOS DE FILTRO GLOBAL ---
+  
   const today = new Date();
   const [globalSelectedYear, setGlobalSelectedYear] = useState(today.getFullYear());
-  const [globalSelectedMonth, setGlobalSelectedMonth] = useState(today.getMonth()); // 0-indexed
-  // --------------------------------
+  const [globalSelectedMonth, setGlobalSelectedMonth] = useState(today.getMonth()); 
+  
 
   const lineOptions = {
     responsive: true,
@@ -178,7 +178,7 @@ const Dashboard = ({ user }) => {
   };
 
 
-  // Helper function for Simple Linear Regression
+ 
   const calculateLinearRegression = (data) => {
     const n = data.length;
     let sumX = 0;
@@ -187,7 +187,7 @@ const Dashboard = ({ user }) => {
     let sumX2 = 0;
 
     for (let i = 0; i < n; i++) {
-      const x = i; // Month index (0 to n-1)
+      const x = i; 
       const y = data[i];
 
       sumX += x;
@@ -199,7 +199,7 @@ const Dashboard = ({ user }) => {
     const denominator = (n * sumX2) - (sumX * sumX);
 
     if (denominator === 0) {
-      return { m: 0, b: sumY / n }; // Fallback for no variance
+      return { m: 0, b: sumY / n }; 
     }
 
     const m = ((n * sumXY) - (sumX * sumY)) / denominator;
@@ -208,7 +208,7 @@ const Dashboard = ({ user }) => {
     return { m, b };
   };
 
-  // Helper para filtrar órdenes por año y mes
+  
   const filterOrdersByDate = (ordersArray, year, month) => {
     return ordersArray.filter(order => {
       if (!order.createdAt) return false;
@@ -217,7 +217,7 @@ const Dashboard = ({ user }) => {
     });
   };
 
-  // Customer Segmentation Analysis (always for current year as per new requirement)
+  
   async function analyzeCustomerSegmentation(allOrders, targetYear) {
     try {
       const clientsResponse = await axios.get(`${API_URL}/client`, {
@@ -239,7 +239,7 @@ const Dashboard = ({ user }) => {
 
       ordersInTargetYear.forEach(order => {
         const clientId = order.client?.idClient;
-        if (clientId) { // Ensure client ID exists before counting
+        if (clientId) { 
           clientOrderCounts[clientId] = (clientOrderCounts[clientId] || 0) + 1;
         }
       });
@@ -263,8 +263,7 @@ const Dashboard = ({ user }) => {
         } else if (orderCount >= 1) {
           esporadicos++;
         } else {
-          // A client is "new" if they have 0 orders in the target year AND were created within the last 3 months
-          // AND their creation year matches the target year (to avoid counting very old clients with no orders as "new")
+          
           if (client.createdAt) {
             const clientCreatedDate = new Date(client.createdAt);
             if (clientCreatedDate >= threeMonthsAgo && clientCreatedDate.getFullYear() === targetYear) {
@@ -303,8 +302,7 @@ const Dashboard = ({ user }) => {
   }
 
 
-  // --- useEffect for initial data load and most general metrics/charts ---
-  // This effect runs on component mount and when currentPage or globalSelectedYear (for line charts) changes.
+ 
   useEffect(() => {
     setIsLoading(true);
 
@@ -312,22 +310,22 @@ const Dashboard = ({ user }) => {
       try {
         const [
           { data: clientsResp },
-          ordersResp, // This will now fetch ALL orders, no 'showActiveOnly' param
-          activeOrdersResp, // New call specifically for 'active' count
+          ordersResp, 
+          activeOrdersResp, 
         ] = await Promise.all([
           axios.get(`${API_URL}/client`, {
             params: { filter: 'Activo', limit: 1, offset: 0 }
           }),
-          axios.get(`${API_URL}/order/all`), // Fetch ALL orders
-          axios.get(`${API_URL}/order/all`, { params: { showActiveOnly: 'true' } }), // Fetch only ACTIVE orders
+          axios.get(`${API_URL}/order/all`), 
+          axios.get(`${API_URL}/order/all`, { params: { showActiveOnly: 'true' } }), 
         ]);
 
         const fetchedAllOrders = Array.isArray(ordersResp.data) ? ordersResp.data : [];
         setAllOrdersData(fetchedAllOrders); // Store all orders
 
-        // --- MÉTRICAS GLOBALES (NO AFECTADAS POR FILTRO DE FECHA GLOBAL) ---
+        
         setClientesActivos(clientsResp.total || 0);
-        // Órdenes Activas: Usar la respuesta específica de órdenes activas
+        
         const activeOrdersCount = Array.isArray(activeOrdersResp.data) ? activeOrdersResp.data.length : 0;
         setOrdenesActivas(activeOrdersCount);
 
@@ -335,7 +333,7 @@ const Dashboard = ({ user }) => {
           o => o.orderStatus?.name?.toLowerCase() === 'Pendiente Cotización'
         ).length);
 
-        // Tiempo Promedio Órdenes (Cálculo sobre TODAS las órdenes con outDate o updatedAt)
+        
         const ordenesConFechasCompletas = fetchedAllOrders.filter(o => o.outDate && o.createdAt);
         if (ordenesConFechasCompletas.length > 0) {
           const tiempos = ordenesConFechasCompletas.map(o => {
@@ -344,18 +342,18 @@ const Dashboard = ({ user }) => {
             const diffTime = Math.abs(fechaFin - fechaInicio);
             const diasDiferencia = diffTime / (1000 * 60 * 60 * 24);
             return diasDiferencia;
-          }).filter(tiempo => tiempo >= 0 && tiempo < 365); // Filter out unreasonable times
+          }).filter(tiempo => tiempo >= 0 && tiempo < 365); 
 
           const promedioDias = tiempos.length > 0
             ? tiempos.reduce((a, b) => a + b, 0) / tiempos.length
             : 0;
           setTiempoPromedio(promedioDias > 0 ? promedioDias.toFixed(1) : '0.0');
         } else {
-          // Fallback if no outDate, use createdAt to updatedAt difference for any change
+          
           const ordenesConActualizacion = fetchedAllOrders.filter(o => {
             const hasCreatedDate = o.createdAt;
             const hasUpdatedDate = o.updatedAt;
-            // Only consider if updated date is later than created date
+            
             const isActuallyUpdated = new Date(o.updatedAt) > new Date(o.createdAt);
             return hasCreatedDate && hasUpdatedDate && isActuallyUpdated;
           });
@@ -367,7 +365,7 @@ const Dashboard = ({ user }) => {
               const diffTime = Math.abs(fechaFin - fechaInicio);
               const diasDiferencia = diffTime / (1000 * 60 * 60 * 24);
               return diasDiferencia;
-            }).filter(tiempo => tiempo > 0 && tiempo < 365); // Filter out 0-day differences
+            }).filter(tiempo => tiempo > 0 && tiempo < 365); 
 
             const promedioActualizacion = tiemposActualizacion.length > 0
               ? tiemposActualizacion.reduce((a, b) => a + b, 0) / tiemposActualizacion.length
@@ -380,7 +378,7 @@ const Dashboard = ({ user }) => {
         }
 
 
-        // Doughnut (Distribución de órdenes por estado) - sobre TODAS las órdenes
+        
         if (fetchedAllOrders.length > 0) {
           const estados = {};
           fetchedAllOrders.forEach(o => {
@@ -412,7 +410,7 @@ const Dashboard = ({ user }) => {
         }
 
 
-        // Órdenes por mes y Ventas por mes (Line charts) - SIEMPRE usan el globalSelectedYear para la tendencia anual
+        
         const currentYearForLineCharts = globalSelectedYear;
 
         const allMonthsLabels = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -475,7 +473,7 @@ const Dashboard = ({ user }) => {
           ]
         });
 
-        // Ventas por mes
+        
         const ventasByMonth = Array(12).fill(0);
         fetchedAllOrders.forEach(o => {
           if (o.createdAt) {
@@ -535,10 +533,10 @@ const Dashboard = ({ user }) => {
           ]
         });
 
-        // Customer Segmentation Analysis (always for current year)
+        
         await analyzeCustomerSegmentation(fetchedAllOrders, today.getFullYear());
 
-        // Órdenes Recientes (Pagination for ALL orders, not filtered by global filters)
+        
         const totalPagesCalc = Math.ceil(fetchedAllOrders.length / itemsPerPage);
         setTotalPages(totalPagesCalc);
         const startIndex = (currentPage - 1) * itemsPerPage;
@@ -549,45 +547,42 @@ const Dashboard = ({ user }) => {
       } catch (e) {
         console.error('Error fetching metrics:', e);
         setTiempoPromedio('Error');
-        setAllOrdersData([]); // Clear orders on error
+        setAllOrdersData([]); 
         setOrdenesRecientes([]);
-        setOrdenesActivas(0); // Ensure active orders is 0 on error
+        setOrdenesActivas(0); 
       } finally {
         setIsLoading(false);
       }
     }
-    // This useEffect depends on currentPage for pagination of all orders,
-    // and globalSelectedYear for the line charts which use it for the full year trend.
+   
     fetchAllDashboardData();
   }, [currentPage, globalSelectedYear]);
 
 
-  // --- New useEffect for components specifically affected by global month/year filter ---
-  // This runs when allOrdersData is available OR when globalSelectedYear/Month changes.
+  
   useEffect(() => {
     if (allOrdersData.length === 0) {
-      // Clear data for affected components if allOrdersData is not yet loaded or is empty
+      
       setMostUsedParts([]);
       setMostUsedSupplies([]);
       setDailyOrderData({ labels: [], datasets: [] });
       setContractorOrderCounts([]);
-      setTopAssignedDrivers([]); // Clear top drivers
-      setTotalUniqueAssignedDrivers(0); // Clear total unique drivers
+      setTopAssignedDrivers([]); 
+      setTotalUniqueAssignedDrivers(0); 
       return;
     }
 
-    // Filter orders by the global selected month and year for these specific components
+    
     const filteredOrdersByGlobalPeriod = filterOrdersByDate(allOrdersData, globalSelectedYear, globalSelectedMonth);
 
-    // Repuestos más usados (para el mes/año seleccionado)
+   
     const partsCount = {};
     filteredOrdersByGlobalPeriod.forEach(order => {
       if (order.sparePartMaterials && Array.isArray(order.sparePartMaterials)) {
         order.sparePartMaterials.forEach(item => {
-          // 'cantidad' es la cantidad específica de este material en esta orden.
-          // Se suma para obtener el total usado en el período.
+          
           if (item.sparePartMaterial?.name && item.cantidad) {
-            const unit = item.sparePartMaterial.unit || 'uds.'; // Get unit or default
+            const unit = item.sparePartMaterial.unit || 'uds.'; 
             const key = `${item.sparePartMaterial.name} (${unit})`;
             partsCount[key] = (partsCount[key] || 0) + item.cantidad;
           }
@@ -600,17 +595,16 @@ const Dashboard = ({ user }) => {
       .slice(0, 5);
     setMostUsedParts(sortedParts);
 
-    // Insumos más usados (para el mes/año seleccionado)
+    
     const suppliesCount = {};
     filteredOrdersByGlobalPeriod.forEach(order => {
       if (order.manpowers && Array.isArray(order.manpowers)) {
         order.manpowers.forEach(manpower => {
           if (manpower.supplies && Array.isArray(manpower.supplies)) {
             manpower.supplies.forEach(supplyItem => {
-              // 'cantidad' es la cantidad específica de este insumo en esta mano de obra.
-              // Se suma para obtener el total usado en el período.
+             
               if (supplyItem.supply?.name && supplyItem.cantidad) {
-                const unit = supplyItem.supply.unit || ''; // Get unit or default
+                const unit = supplyItem.supply.unit || ''; 
                 const key = `${supplyItem.supply.name} (${unit})`;
                 suppliesCount[key] = (suppliesCount[key] || 0) + supplyItem.cantidad;
               }
@@ -625,7 +619,7 @@ const Dashboard = ({ user }) => {
       .slice(0, 5);
     setMostUsedSupplies(sortedSupplies);
 
-    // Contratistas con Más Órdenes Asignadas (AFECTADO por filtro global)
+    
     const contractorCounts = {};
     filteredOrdersByGlobalPeriod.forEach(order => {
       if (order.manpowers && Array.isArray(order.manpowers)) {
@@ -643,14 +637,14 @@ const Dashboard = ({ user }) => {
       .slice(0, 5);
     setContractorOrderCounts(sortedContractors);
 
-    // Top 5 Conductores Asignados (NUEVO - AFECTADO por filtro global)
+    
     const driverOrderCounts = {};
     const uniqueDriversInMonth = new Set();
     filteredOrdersByGlobalPeriod.forEach(order => {
       if (order.assignedDriver?.firstName && order.assignedDriver?.lastName) {
         const driverFullName = `${order.assignedDriver.firstName} ${order.assignedDriver.lastName}`;
         driverOrderCounts[driverFullName] = (driverOrderCounts[driverFullName] || 0) + 1;
-        uniqueDriversInMonth.add(driverFullName); // Also count unique drivers
+        uniqueDriversInMonth.add(driverFullName); 
       }
     });
     const sortedDrivers = Object.entries(driverOrderCounts)
@@ -658,9 +652,9 @@ const Dashboard = ({ user }) => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
     setTopAssignedDrivers(sortedDrivers);
-    setTotalUniqueAssignedDrivers(uniqueDriversInMonth.size); // Update total unique drivers
+    setTotalUniqueAssignedDrivers(uniqueDriversInMonth.size); 
 
-    // Gráfica de Órdenes Iniciadas por Día (AFECTADO por filtro global)
+   
     const daysInSelectedMonth = new Date(globalSelectedYear, globalSelectedMonth + 1, 0).getDate();
     const dailyCounts = Array(daysInSelectedMonth).fill(0);
     const dayLabels = Array.from({ length: daysInSelectedMonth }, (_, i) => i + 1);
@@ -675,7 +669,7 @@ const Dashboard = ({ user }) => {
 
     let dataToDisplay = dailyCounts;
     let labelsToDisplay = dayLabels;
-    // If the selected month/year is the current one, only show data up to the current day
+    
     if (globalSelectedMonth === today.getMonth() && globalSelectedYear === today.getFullYear()) {
       dataToDisplay = dailyCounts.slice(0, today.getDate());
       labelsToDisplay = dayLabels.slice(0, today.getDate());
@@ -694,7 +688,7 @@ const Dashboard = ({ user }) => {
       ],
     });
 
-  }, [allOrdersData, globalSelectedYear, globalSelectedMonth]); // Dependencies for this specific effect
+  }, [allOrdersData, globalSelectedYear, globalSelectedMonth]); 
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= totalPages) {
@@ -702,9 +696,9 @@ const Dashboard = ({ user }) => {
     }
   };
 
-  // Helper para obtener nombres de meses
+  
   const getMonthName = (monthIndex) => {
-    // Usamos un año fijo (ej. 2000) para asegurar que solo el nombre del mes sea afectado
+    
     const date = new Date(2000, monthIndex, 1);
     return date.toLocaleString('es-ES', { month: 'long' });
   };
@@ -717,7 +711,7 @@ const Dashboard = ({ user }) => {
     );
   }
 
-  // Generate year options (e.g., current year - 2 to current year + 1)
+ 
   const currentYear = today.getFullYear();
   const yearOptions = [];
   for (let y = currentYear - 2; y <= currentYear + 1; y++) {
@@ -726,15 +720,15 @@ const Dashboard = ({ user }) => {
 
   return (
     <div className="bg-gray-50 p-6">
-      {/* --- FILTROS GLOBALES --- */}
+     
       <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6 bg-white p-4 rounded-lg shadow">
-        {/* Título del Reporte - Centrado horizontalmente y con margen si es en columna */}
+        
         <h1 className="text-xl font-bold text-gray-800 text-center md:text-left md:flex-grow">
           Reporte {globalSelectedYear}
         </h1>
 
-        {/* Contenedor para los selectores de Año y Mes */}
-        <div className="flex flex-wrap items-center gap-4 justify-center md:justify-end"> {/* 'justify-end' para alinear a la derecha en pantallas grandes */}
+       
+        <div className="flex flex-wrap items-center gap-4 justify-center md:justify-end"> 
           <div>
             <label htmlFor="year-select" className="block text-sm font-medium text-gray-700">Año</label>
             <select
@@ -770,7 +764,7 @@ const Dashboard = ({ user }) => {
         </div>
       </div>
 
-      {/* Métricas Principales (NO AFECTADAS POR EL FILTRO GLOBAL DE MES/AÑO) */}
+     
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-blue-500 text-white rounded-lg shadow p-4">
           <div className="flex justify-between items-center">
@@ -815,9 +809,9 @@ const Dashboard = ({ user }) => {
         </div>
       </div>
 
-      {/* Gráficos Principales (Órdenes/Ventas, Distribución) - mayormente NO AFECTADOS por filtro global de mes/año (solo el de Año para Line Charts) */}
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Línea o Ventas con Predicción  */}
+       
         <div className="bg-white rounded-lg shadow">
           <div className="p-4 flex justify-between items-center border-b">
             <h2 className="text-lg font-semibold">
@@ -848,7 +842,7 @@ const Dashboard = ({ user }) => {
           </div>
         </div>
 
-        {/* Distribución de órdenes por estado - sobre todas las órdenes */}
+       
         <div className="bg-white rounded-lg shadow">
           <div className="p-4 flex justify-between items-center border-b">
             <h2 className="text-lg font-semibold">Distribución de Órdenes por Estado (General)</h2>
@@ -862,9 +856,9 @@ const Dashboard = ({ user }) => {
         </div>
       </div>
 
-      {/* --- Secciones de Métricas Detalladas */}
+      
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        {/* Repuestos Más Usados */}
+        
         <div className="bg-white rounded-lg shadow p-4">
           <h2 className="text-lg font-semibold mb-3 flex items-center">
             <FaTools className="mr-2 text-gray-600" /> Repuestos Más Usados ({getMonthName(globalSelectedMonth)} {globalSelectedYear})
@@ -883,7 +877,7 @@ const Dashboard = ({ user }) => {
           )}
         </div>
 
-        {/* Insumos Más Usados */}
+        
         <div className="bg-white rounded-lg shadow p-4">
           <h2 className="text-lg font-semibold mb-3 flex items-center">
             <FaWrench className="mr-2 text-gray-600" /> Insumos Más Usados ({getMonthName(globalSelectedMonth)} {globalSelectedYear})
@@ -902,7 +896,7 @@ const Dashboard = ({ user }) => {
           )}
         </div>
 
-        {/* Contratistas con Más Órdenes Asignadas */}
+        
         <div className="bg-white rounded-lg shadow p-4">
           <h2 className="text-lg font-semibold mb-3 flex items-center">
             <FaHardHat className="mr-2 text-gray-600" /> Contratistas con Más Órdenes ({getMonthName(globalSelectedMonth)} {globalSelectedYear})
@@ -921,7 +915,7 @@ const Dashboard = ({ user }) => {
           )}
         </div>
 
-        {/* Top 5 Conductores Asignados*/}
+        
         <div className="bg-white rounded-lg shadow p-4">
           <h2 className="text-lg font-semibold mb-3 flex items-center">
             <FaUserTie className="mr-2 text-gray-600" />Conductores Asignados ({getMonthName(globalSelectedMonth)} {globalSelectedYear})
@@ -945,9 +939,9 @@ const Dashboard = ({ user }) => {
         </div>
       </div>
 
-      {/* Nuevas Gráficas a la Par: Órdenes por Día y Segmentación de Clientes */}
+      
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        {/* Órdenes Iniciadas por Día (AFECTADO por filtro global) */}
+        
         <div className="bg-white rounded-lg shadow">
           <div className="p-4 flex justify-between items-center border-b">
             <h2 className="text-lg font-semibold">Órdenes Iniciadas por Día ({getMonthName(globalSelectedMonth)} {globalSelectedYear})</h2>
@@ -960,7 +954,7 @@ const Dashboard = ({ user }) => {
           </div>
         </div>
 
-        {/* Customer Segmentation (SIEMPRE año actual del sistema) */}
+        
         <div className="bg-white rounded-lg shadow">
           <div className="p-4 flex justify-between items-center border-b">
             <h2 className="text-lg font-semibold">Segmentación de Clientes Activos ({today.getFullYear()})</h2>
@@ -975,10 +969,10 @@ const Dashboard = ({ user }) => {
         </div>
       </div>
 
-      {/* Órdenes recientes (SIEMPRE todas las órdenes, paginadas, sin filtro global de mes/año) */}
+      
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 flex justify-between items-center border-b">
-          <h2 className="text-lg font-semibold">Órdenes Recientes (Todas)</h2>
+          <h2 className="text-lg font-semibold">Órdenes Recientes</h2>
           <span className="text-sm text-gray-500">
             Total general: {allOrdersData.length} órdenes
           </span>
@@ -1022,7 +1016,7 @@ const Dashboard = ({ user }) => {
           </table>
         </div>
 
-        {/* Paginación con flechas y contador */}
+       
         <div className="flex justify-center items-center mt-6 gap-4">
           <button
             onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}

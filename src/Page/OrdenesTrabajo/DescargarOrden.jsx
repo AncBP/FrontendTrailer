@@ -24,7 +24,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
     return `$${n.toLocaleString("es-ES")}`;
   };
 
-  // Función para calcular subtotales de repuestos
+  
   const calcularSubtotalesRepuestos = (sparePartMaterials) => {
     if (!isValidArray(sparePartMaterials)) return { costoTotal: 0, ventaTotal: 0 };
     
@@ -34,7 +34,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
     return { costoTotal, ventaTotal };
   };
 
-  // Función para calcular subtotales de mano de obra
+  
   const calcularSubtotalesManoObra = (manpower) => {
     if (!manpower) return { costoTotal: 0, ventaTotal: 0 };
     
@@ -44,7 +44,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
     return { costoTotal, ventaTotal };
   };
 
-  // Función para calcular subtotales de insumos
+  
   const calcularSubtotalesInsumos = (supplies) => {
     if (!isValidArray(supplies)) return { costoTotal: 0 };
     
@@ -64,20 +64,20 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
     });
   }
 
-  // convierte el logo a base64
+ 
   const logoBase64 = await getBase64ImageFromURL(logoImg);
 
   const docDefinition = {
     images: { logo: logoBase64 },
     content: [
-      // logo centrado
+     
       { image: 'logo', width: 120, alignment: 'center', margin: [0, 0, 0, 12] },
 
       { text: "ORDEN DE TRABAJO", style: "header" },
       { text: `N°: ${orden.orderNumber || "Sin número"}`, style: "subheader" },
       "\n",
 
-      // === INFORMACIÓN GENERAL (sin tabla) ===
+      // === INFORMACIÓN GENERAL ===
       { text: "INFORMACIÓN GENERAL", style: "section" },
       {
         columns: [
@@ -286,14 +286,14 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
         ...orden.manpowers.map((mp, index) => {
           const elements = [];
 
-          // Título de la mano de obra con número
+        
           elements.push({
             text: `${index + 1}. MANO DE OBRA`,
             style: 'manpowerTitle',
             margin: [0, 10, 0, 5]
           });
 
-          // Información principal de mano de obra en formato de bloques
+          
           elements.push({
             table: {
               widths: [70, 20, 55, 45, 45, 45, 45],
@@ -320,7 +320,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                   { text: formatCurrency(mp.ventaUnitaria), style: 'manpowerCell', alignment: 'right' },
                   { text: formatCurrency(mp.ventaTotal), style: 'manpowerCell', alignment: 'right' }
                 ],
-                // Subtotal de mano de obra - alineado con las columnas Costo T. y Venta T.
+                
                 [
                   { text: 'SUBTOTAL MANO DE OBRA', style: 'subtotalLabel', colSpan: 3 },
                   {}, {},
@@ -383,7 +383,7 @@ export async function descargarOrdenCompletaPDF_pdfmake(orden) {
                     { text: formatCurrency(s.unitaryCost), style: 'suppliesCell', alignment: 'right' },
                     { text: formatCurrency(s.costoTotal), style: 'suppliesCell', alignment: 'right' }
                   ]),
-                  // Subtotal de insumos - alineado con la columna Costo T.
+                 
                   [
                     { text: 'SUBTOTAL INSUMOS', style: 'subtotalLabel', colSpan: 4 },
                     {}, {}, {},

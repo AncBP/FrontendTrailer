@@ -24,7 +24,7 @@ export async function descargarOrdenCompletaPDFClinete_pdfmake(orden) {
     return `$${n.toLocaleString("es-ES")}`;
   };
 
-  // Helper para convertir URL de imagen a Base64
+
   async function getBase64ImageFromURL(url) {
     const res = await fetch(url);
     const blob = await res.blob();
@@ -36,20 +36,20 @@ export async function descargarOrdenCompletaPDFClinete_pdfmake(orden) {
     });
   }
 
-  // convierte el logo a base64
+
   const logoBase64 = await getBase64ImageFromURL(logoImg);
 
   const docDefinition = {
     images: { logo: logoBase64 },
     content: [
-      // logo centrado
+  
       { image: 'logo', width: 120, alignment: 'center', margin: [0,0,0,12] },
 
       { text: "ORDEN DE TRABAJO", style: "header" },
       { text: `N°: ${orden.orderNumber || "Sin número"}`, style: "subheader" },
       "\n",
 
-      // === INFORMACIÓN GENERAL (sin tabla) ===
+      // === INFORMACIÓN GENERAL ===
       { text: "INFORMACIÓN GENERAL", style: "section" },
       {
         columns: [

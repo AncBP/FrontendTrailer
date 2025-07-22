@@ -39,7 +39,7 @@ function App() {
   const canRoute = (section) =>
     user && routeAccess[section]?.includes(user.role.name);
 
-  // Devuelve la ruta por defecto según rol, o '/dashboard' si no hay usuario
+  
   const getHomePath = () => {
     if (!user) return "/login";
     switch (user.role.name) {

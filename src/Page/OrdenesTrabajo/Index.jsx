@@ -5,6 +5,9 @@ import { descargarOrdenCompletaPDF_pdfmake } from './DescargarOrden';
 import { descargarOrdenCompletaPDFClinete_pdfmake } from './DescargarCliente';
 import { useNavigate } from 'react-router-dom';
 
+
+
+
 const API_URL = 'https://api.trailers.trailersdelcaribe.net/api';
 
 const OrdenesTrabajo = ({ user }) => {
@@ -16,6 +19,24 @@ const OrdenesTrabajo = ({ user }) => {
   const [showActiveOnly, setShowActiveOnly] = useState(true);
   const navigate = useNavigate();
   const ITEMS_PER_PAGE = 6;
+  const [tick, setTick] = useState(0);
+
+
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const formatElapsed = hours => {
+    if (hours >= 24) {
+      const days = Math.floor(hours / 24);
+      const remH = hours % 24;
+      return remH
+        ? `${days} d ${remH} h`
+        : `${days} d`;
+    }
+    return `${hours} h`;
+  };
 
   useEffect(() => {
     if (!user?.idUser) return;
@@ -100,7 +121,7 @@ const OrdenesTrabajo = ({ user }) => {
     <div className="p-6 bg-gray-50 min-h-screen">
       <h1 className="text-2xl font-bold text-gray-700 mb-6">Orden de trabajo</h1>
 
-      {/* Barra superior: buscador + switch + botón */}
+     
       <div className="flex justify-between items-center mb-6 space-x-4">
         {/* Buscador */}
         <div className="relative flex-1">
@@ -148,7 +169,7 @@ const OrdenesTrabajo = ({ user }) => {
           )}
       </div>
 
-      {/* Tarjeta con tabla */}
+      
       <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Listado de Órdenes de Trabajo</h2>
 
@@ -171,6 +192,7 @@ const OrdenesTrabajo = ({ user }) => {
                   <th className="py-2 text-sm font-medium text-gray-600">Estado</th>
                   <th className="py-2 text-sm font-medium text-gray-600">Tipo de servicio</th>
                   <th className="py-2 text-sm font-medium text-gray-600">Fecha creación</th>
+                  <th className="py-2 text-sm font-medium text-gray-600 text-center align-middle">Duración cotización elaborada</th>
                   <th className="py-2"></th>
                 </tr>
               </thead>
@@ -195,6 +217,12 @@ const OrdenesTrabajo = ({ user }) => {
                           ? new Date(o.createdAt).toLocaleString()
                           : '-'}
                       </td>
+                      <td className="py-3 text-sm text-gray-600 text-center align-middle">
+                        {o.hoursUntilBilling != null
+                          ? formatElapsed(o.hoursUntilBilling)
+                          : '-'}
+                      </td>
+
                       <td className="py-3 flex gap-2 justify-end">
                         <button
                           onClick={() => navigate(`/ordenes/${o.idOrder}/editar`)}
@@ -273,7 +301,7 @@ const OrdenesTrabajo = ({ user }) => {
             </table>
 
             <div className="flex justify-center items-center mt-6 gap-4">
-              {/* Flecha Anterior */}
+              
               <button
                 onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
                 disabled={currentPage === 1}
@@ -282,12 +310,12 @@ const OrdenesTrabajo = ({ user }) => {
                 ‹
               </button>
 
-              {/* Indicador de página */}
+             
               <span className="text-sm text-gray-700">
                 Página {currentPage} de {totalPages}
               </span>
 
-              {/* Flecha Siguiente */}
+             
               <button
                 onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
                 disabled={currentPage === totalPages}

@@ -15,7 +15,7 @@ const Insumos = () => {
     active: true,
   };
 
-  // Estados
+  
   const [insumos, setInsumos] = useState([]);
   const [proveedores, setProveedores] = useState([]);
   const [busqueda, setBusqueda] = useState('');
@@ -28,14 +28,14 @@ const Insumos = () => {
 
   const ITEMS_PER_PAGE = 6;
 
-  // Carga proveedores (una sola vez)
+  
   useEffect(() => {
     axios.get(API_PROVIDERS)
       .then(res => setProveedores(res.data.data || res.data))
       .catch(err => console.error('Error cargando proveedores:', err));
   }, []);
 
-  // Carga paginada + búsqueda + activos
+ 
   const fetchData = async () => {
     try {
       const params = {
@@ -54,12 +54,12 @@ const Insumos = () => {
     }
   };
 
-  // Cada vez que cambian búsqueda, switch o página
+ 
   useEffect(() => {
     fetchData();
   }, [busqueda, showOnlyActive, currentPage]);
 
-  // Helpers de modal y formulario similares a antes
+ 
   const cerrarModal = () => {
     setMostrarModal(false);
     setModo('agregar');
@@ -251,7 +251,7 @@ const Insumos = () => {
             </div>
 
             <form onSubmit={e => { e.preventDefault(); handleGuardar(); }} className="space-y-4">
-              {/* Nombre: ocupa toda la fila */}
+              
               <div className="grid grid-cols-1">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -268,7 +268,7 @@ const Insumos = () => {
                 </div>
               </div>
 
-              {/* Unidad de medida + Proveedores lado a lado */}
+              
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

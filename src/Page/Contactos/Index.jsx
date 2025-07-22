@@ -14,7 +14,7 @@ const Contactos = () => {
     client: '',
   };
 
-  // States
+
   const [contactos, setContactos] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [nuevoContacto, setNuevoContacto] = useState(ContactoVacio);
@@ -29,7 +29,7 @@ const Contactos = () => {
   const [modo, setModo] = useState('agregar');
   const [mostrarModal, setMostrarModal] = useState(false);
 
-  // Carga inicial de clientes (para el select)
+  
   useEffect(() => {
     axios.get(API_URL_CLIENT, { params: { limit: 1000, offset: 0, showActiveOnly: true } })
       .then(res => {
@@ -39,7 +39,7 @@ const Contactos = () => {
       .catch(() => toast.error("Error al cargar clientes"));
   }, []);
 
-  // Cada vez que cambian búsqueda / página / switch activo
+  
   useEffect(() => {
     cargarContactos();
   }, [busqueda, showActiveOnly, currentPage]);
@@ -250,7 +250,7 @@ const Contactos = () => {
                         <td className="py-3 text-sm">{contacto.client?.name || 'Sin cliente'}</td>
                         <td className="py-3 flex gap-2 justify-end">
                           {esContactoActivo ? (
-                            /* -------- CONTACTO ACTIVO: Editar + Eliminar -------- */
+                            
                             <>
                               {/* Editar */}
                               <button
@@ -267,7 +267,7 @@ const Contactos = () => {
                                 </svg>
                               </button>
 
-                              {/* Eliminar (desactivar) */}
+                              {/* Eliminar*/}
                               <button
                                 onClick={() => handleEliminar(contacto.idContact)}
                                 className="p-1 rounded-full bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5
@@ -285,7 +285,7 @@ const Contactos = () => {
                               </button>
                             </>
                           ) : (
-                            /* -------- CONTACTO INACTIVO: botón Activar -------- */
+                            
                             <button
                               onClick={() => handleActivar(contacto.idContact)}
                               className="p-1 rounded-full bg-green-600 hover:bg-green-700 text-white
@@ -394,8 +394,8 @@ const Contactos = () => {
                     type="tel"
                     maxLength={PHONE_MAX}
                     inputMode="numeric"
-                    pattern="\d{10}"                          // HTML5: exactamente 10 dígitos
-                    onKeyDown={(e) => {                       // bloquea teclas no numéricas
+                    pattern="\d{10}"                          
+                    onKeyDown={(e) => {                       
                       if (
                         !/^\d$/.test(e.key) &&
                         !['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)

@@ -37,7 +37,7 @@ const Usuarios = () => {
 
   const [nuevoUsuario, setNuevoUsuario] = useState(usuarioVacio);
 
-  // Efecto para cargar datos cuando cambian los filtros o página
+  
   useEffect(() => {
     fetchUsuariosPaginados();
     if (currentPage === 1) {
@@ -47,7 +47,7 @@ const Usuarios = () => {
     }
   }, [currentPage, mostrarSoloActivos, busqueda]);
 
-  // Reset página cuando cambian los filtros
+ 
   useEffect(() => {
     if (currentPage !== 1) {
       setCurrentPage(1);
@@ -65,7 +65,7 @@ const Usuarios = () => {
       };
 
 
-      // Remover parámetros undefined
+      
       Object.keys(params).forEach(key =>
         params[key] === undefined && delete params[key]
       );
@@ -112,14 +112,14 @@ const Usuarios = () => {
 const handleChange = (e) => {
   const { name, value } = e.target;
 
-  /* Teléfono → solo 10 dígitos */
+ 
   if (name === 'telefono') {
     const sanitized = value.replace(/\D/g, '').slice(0, 10);
     setNuevoUsuario((prev) => ({ ...prev, telefono: sanitized }));
     return;
   }
 
-  /* Nº de documento → solo dígitos (longitud según tipo) */
+ 
   if (name === 'number') {
     const selectedTypeId   = nuevoUsuario.document.documentType;
     const selectedTypeName =
@@ -135,7 +135,7 @@ const handleChange = (e) => {
     return;
   }
 
-  /* Cambio de tipo de documento */
+  
   if (name === 'documentType') {
     setNuevoUsuario((prev) => ({
       ...prev,
@@ -220,13 +220,13 @@ const handleChange = (e) => {
     if (!confirmar) return;
 
     try {
-      // 1) Marca primero active: false
+      
       const inactivo = status.find(s => s.name === 'Inactivo');
       await axios.patch(`${API_URL}/${id}`, {
         userStatus: inactivo.idUserStatus
       });
 
-      // 2) Ahora llama al delete real
+      
       await axios.delete(`${API_URL}/${id}`);
 
       await fetchUsuariosPaginados();
@@ -342,7 +342,7 @@ const handleChange = (e) => {
          <tbody>
   {usuarios.length > 0 ? (
     usuarios.map((user) => {
-      const esUsuarioActivo = user.active === true;   // ← estado lógico
+      const esUsuarioActivo = user.active === true;   
 
       return (
         <tr key={user.idUser} className="border-t border-gray-100">
@@ -362,9 +362,9 @@ const handleChange = (e) => {
           {/* --------- Acciones --------- */}
           <td className="py-3 flex gap-2 justify-end">
             {esUsuarioActivo ? (
-              /* ---------- USUARIO ACTIVO: Editar + Eliminar ---------- */
+             
               <>
-                {/* Editar */}
+                
                 <button
                   onClick={() => handleEditar(user)}
                   className="p-1 rounded-full bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5
@@ -379,7 +379,7 @@ const handleChange = (e) => {
                   </svg>
                 </button>
 
-                {/* Eliminar (desactivar) */}
+                
                 <button
                   onClick={() => handleEliminar(user.idUser)}
                   className="p-1 rounded-full bg-white shadow-md hover:shadow-xl transform hover:-translate-y-0.5
@@ -397,7 +397,7 @@ const handleChange = (e) => {
                 </button>
               </>
             ) : (
-              /* ---------- USUARIO INACTIVO: botón Activar ---------- */
+              
               <button
                 onClick={() => handleActivar(user.idUser)}
                 className="p-1 rounded-full bg-green-600 hover:bg-green-700 text-white

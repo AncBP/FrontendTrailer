@@ -147,7 +147,7 @@ const Vehiculos = () => {
   };
 
   const handleGuardar = async () => {
-    // Validar placas antes
+    
     if (errorCabe || errorTrailer) {
       toast.error('Corrige el formato de las placas antes de guardar');
       return;
@@ -168,7 +168,7 @@ const Vehiculos = () => {
 
       let res;
       if (modo === 'editar') {
-        // sólo en edición enviamos active
+       
         payload.active = nuevoVehiculo.active;
         res = await axios.patch(`${API_URL}/${nuevoVehiculo.idVehicule}`, payload);
         toast.success('Vehículo editado correctamente');

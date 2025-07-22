@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 const Proveedores = () => {
   const API_URL = 'https://api.trailers.trailersdelcaribe.net/api/provider';
 
-  // Estados UI
+  
   const [proveedores, setProveedores] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busqueda, setBusqueda] = useState('');
@@ -24,7 +24,7 @@ const Proveedores = () => {
   };
   const [nuevoProveedor, setNuevoProveedor] = useState(proveedoresVacio);
 
-  // Carga paginada desde la API
+  
   const fetchProveedores = async () => {
     setLoading(true);
     try {
@@ -56,7 +56,7 @@ const Proveedores = () => {
     fetchProveedores();
   }, [busqueda, currentPage]);
 
-  // Modal
+  
   const handleAbrirAgregar = () => {
     setModo('agregar');
     setNuevoProveedor(proveedoresVacio);

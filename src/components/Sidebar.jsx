@@ -14,7 +14,7 @@ import contactos from "../assets/agenda.png";
 import vehiculos from "../assets/vehiculos.png";
 import suministros from '../assets/suministro.png';
 
-// Define aquí los roles permitidos por sección
+
 const accessControl = {
   dashboard: [
     'Administrador',

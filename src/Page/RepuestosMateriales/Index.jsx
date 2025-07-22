@@ -31,13 +31,13 @@ const RepuestosYMateriales = () => {
   const [modo, setModo] = useState('agregar');
   const [nuevoRepuesto, setNuevoRepuesto] = useState(repuestoVacio);
 
-  // 1) Carga inicial de proveedores y tipos de vehículo
+  
   useEffect(() => {
     axios.get(API_PROVIDERS).then(r => setProveedores(r.data.data)).catch(console.error);
     axios.get(API_VEHICULO).then(r => setVehicleTypeOptions(r.data)).catch(console.error);
   }, []);
 
-  // 2) Cada vez que cambian búsqueda / switch / página, refetch
+ 
   useEffect(() => {
     fetchData();
   }, [busqueda, showOnlyActive, currentPage]);
@@ -230,7 +230,7 @@ const RepuestosYMateriales = () => {
                 </tbody>
               </table>
 
-              {/* paginación con flechas */}
+              
               {totalPages > 1 && (
                 <div className="flex justify-center items-center mt-6 gap-4">
                   <button

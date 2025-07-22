@@ -8,7 +8,7 @@ const ManoDeObra = () => {
 
   const ManoVacio = { nombre: '', active: true };
 
-  // Estados
+ 
   const [manoDeObra, setManoDeObra] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [showOnlyActive, setShowOnlyActive] = useState(true);
@@ -19,7 +19,7 @@ const ManoDeObra = () => {
   const [modo, setModo] = useState('agregar');
   const [nuevoManoDeObra, setNuevoManoDeObra] = useState(ManoVacio);
 
-  // Cada vez que cambian búsqueda / switch / página
+  
   useEffect(() => {
     fetchData();
   }, [busqueda, showOnlyActive, currentPage]);

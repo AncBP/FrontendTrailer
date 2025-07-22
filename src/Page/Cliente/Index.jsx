@@ -27,14 +27,14 @@ const Cliente = () => {
   };
   const [nuevoCliente, setNuevoCliente] = useState(ClienteVacio);
 
-  // Carga tipos de documento una sola vez
+  
   useEffect(() => {
     axios.get(`https://api.trailers.trailersdelcaribe.net/api/document-type`)
       .then(res => setDocumentTypes(res.data))
       .catch(err => console.error(err));
   }, []);
 
-  // Cada vez que cambian búsqueda / página / switch activo
+  
   useEffect(() => {
     fetchClientes();
   }, [busqueda, showActiveOnly, currentPage]);
@@ -60,7 +60,7 @@ const Cliente = () => {
     }
   };
 
-  // Handlers UI
+  
   const handleBusquedaChange = e => {
     setBusqueda(e.target.value);
     setCurrentPage(1);

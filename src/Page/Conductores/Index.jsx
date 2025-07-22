@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 const API_URL = 'https://api.trailers.trailersdelcaribe.net/api/driver';
 
 const Conductores = () => {
-  // Estados UI
+ 
   const [conductores, setConductores] = useState([]);
   const [documentTypes, setDocumentTypes] = useState([]);
   const [loading, setLoading] = useState(false);
