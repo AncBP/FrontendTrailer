@@ -1,12 +1,44 @@
-# React + Vite
+# Trailer del Caribe 
+Frontend realizado con React y Vite usando Tailwind CSS
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+---
 
-Currently, two official plugins are available:
+## 🔧 Requisitos Previos
+Asegúrate de tener instalado en tu máquina:
+- Node.js >= 14 (recomendado 16 o superior)  
+- npm >= 6 o yarn >= 1.22  
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+---
 
-## Expanding the ESLint configuration
+## 🛠️ Instalación
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+1. **Clona** este repositorio:
+   ```bash
+   git clone https://github.com/AncBP/FrontendTrailer.git
+   cd FrontendTrailer
+   ```
+
+2. **Instala** las dependencias:
+
+   Con npm:
+   ```bash
+   npm install
+   ```
+
+   Con yarn:
+   ```bash
+   yarn install
+   ```
+
+---
+
+## 🚀 Scripts Disponibles
+
+Dentro del directorio del proyecto, puedes ejecutar:
+
+| Comando | Descripción |
+|---------|-------------|
+| `npm run dev` | Inicia el servidor de desarrollo con hot-reload (Vite) |
+| `npm run build` | Genera la versión optimizada para producción en /dist |
+| `npm run preview` | Sirve la carpeta dist para previsualizar el build final |
+| `npm run lint` | Ejecuta ESLint para comprobar estilo de código |
