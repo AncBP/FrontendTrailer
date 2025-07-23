@@ -1847,7 +1847,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
             {/* Informacion del cliente  */}
 
-            <div className="mb-4 border border-gray-200 rounded-lg overflow-hidden">
+            <div className="mb-4 border border-gray-200 rounded-lg overflow-visible">
                 <div
                     className="bg-white p-4 flex justify-between items-center cursor-pointer"
                     onClick={() => {
