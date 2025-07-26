@@ -87,7 +87,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
         nombreSolicitud: '',
         hoursUntilBilling: null,
 
-       
+
         totals: {
             subtotalCostosRepuestos: 0,
             subtotalVentasRepuestos: 0,
@@ -212,7 +212,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
             const total = resp.data?.total || nuevos.length;
 
             setDriverOptions(prev => {
-                
+
                 const seen = new Set(prev.map(d => d.idDriver));
                 const unidos = [...prev, ...nuevos.filter(d => !seen.has(d.idDriver))];
                 if (unidos.length >= total) setHasMoreDrivers(false);
@@ -245,7 +245,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 return true;
             });
 
-           
+
             if (unicos.length >= total) {
                 setHasMoreUsers(false);
             }
@@ -306,10 +306,10 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
         try {
             const fecha = new Date(fechaISO);
-            
+
             if (isNaN(fecha.getTime())) return '';
 
-          
+
             const año = fecha.getFullYear();
             const mes = String(fecha.getMonth() + 1).padStart(2, '0');
             const día = String(fecha.getDate()).padStart(2, '0');
@@ -344,23 +344,23 @@ const NuevaOrdenTrabajo = ({ user }) => {
     function formatearHoraLocal(fechaISO) {
         if (!fechaISO) return '';
         const fecha = new Date(fechaISO);
-        
+
         const horas = String(fecha.getHours()).padStart(2, '0');
         const minutos = String(fecha.getMinutes()).padStart(2, '0');
         return `${horas}:${minutos}`;
     }
-    
+
     useEffect(() => {
         const cargarDatosIniciales = async () => {
             try {
-               
+
                 const requests = [
                     axios.get(`${API_URL}/order-status`).catch(() => ({ data: [] })),
                     axios.get(`${API_URL}/spare-part-material`, { params: { filter: 'Activo', limit: PAG_LIMIT, offset: 0 } }),
                     axios.get(`${API_URL}/service-type`).catch(() => ({ data: [] })),
                     axios.get(`${API_URL}/vehicule-type`, { params: { limit: PAG_LIMIT, offset: 0 } }),
                     axios.get(`${API_URL}/user`, { params: { limit: PAG_LIMIT, offset: 0, filter: 'Activo' } }),
-                    
+
                     axios.get(`${API_URL}/provider`, { params: { limit: PAG_LIMIT, offset: 0, filter: 'Activo' } }),
                     axios.get(`${API_URL}/client`, { params: { limit: PAG_LIMIT, offset: 0, filter: 'Activo' } }),
                     axios.get(`${API_URL}/manpower`, { params: { filter: 'Activo', limit: PAG_LIMIT, offset: 0 } }),
@@ -375,7 +375,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     serviceResp,
                     vehicleTypeResp,
                     userResp,
-                   
+
                     proveedoresResp,
                     clientResp,
                     manpowerResp,
@@ -384,7 +384,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     supplyResp
                 ] = await Promise.all(requests);
 
-               
+
                 const contactosArray = Array.isArray(contactsResp.data.data)
                     ? contactsResp.data.data
                     : Array.isArray(contactsResp.data)
@@ -394,7 +394,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 setAllContacts(contactosArray);
                 setContactosData(contactosArray);
 
-              
+
                 const rawProv = proveedoresResp.data;
                 const listaProveedores = Array.isArray(rawProv)
                     ? rawProv
@@ -403,7 +403,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                         : [];
                 setProveedores(listaProveedores);
 
-              
+
                 const rawSupply = supplyResp.data;
                 const listaSupply = Array.isArray(rawSupply)
                     ? rawSupply
@@ -412,7 +412,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                         : [];
                 setSupplyOptions(listaSupply);
 
-               
+
                 setStatusOptions(statusResp.data || []);
                 setOpcRepuestos(
                     Array.isArray(repuestosResp.data)
@@ -447,7 +447,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
 
     useEffect(() => {
-        
+
         if (!didMount.current) {
             didMount.current = true;
             return;
@@ -455,7 +455,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
         const estado = statusOptions.find(s => s.idOrderStatus === formulario.orderStatusId);
 
-       
+
         if (
             prevStatus !== formulario.orderStatusId &&
             estado?.name === 'Cotización Elaborada' &&
@@ -481,7 +481,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 const resp = await axios.get(`${API_URL}/order/${id}`);
 
 
-              
+
                 let orden;
                 if (resp.data.data !== undefined) {
                     orden = Array.isArray(resp.data.data)
@@ -517,7 +517,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 const pricedById = orden.pricings?.[0]?.pricedBy?.idUser;
                 const billedById = orden.billings?.[0]?.billedBy?.idUser;
 
-               
+
                 const faltantes = [];
                 if (pricedById && !userOptions.some(u => u.idUser === pricedById)) {
                     faltantes.push(pricedById);
@@ -526,7 +526,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     faltantes.push(billedById);
                 }
 
-                
+
                 if (faltantes.length) {
                     const respuestas = await Promise.all(
                         faltantes.map(uid => axios.get(`${API_URL}/user/${uid}`))
@@ -544,8 +544,9 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     horaCreacion: formatearHoraLocal(orden.createdAt),
                     hoursUntilBilling: orden.hoursUntilBilling ?? null,
                     Asignado: asignadosBackend,
-                    fechaSalida: isTrabajoRealizado ? toInputDate(orden.outDate) : '',
-                    horaSalida: isTrabajoRealizado ? formatearHoraLocal(orden.outDate) : '',
+                    fechaSalida: orden.outDate ? toInputDate(orden.outDate) : '',
+                    horaSalida: orden.outDate ? formatearHoraLocal(orden.outDate) : '',
+
                     tipoServicio: orden.serviceTypes?.map(st => st.idServiceType.toString()) || [],
                     orderStatusId: orden.orderStatus?.idOrderStatus?.toString() || '',
                     cliente: orden.client?.idClient || '',
@@ -560,7 +561,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     numeroCotizacion: orden.pricings?.[0]?.pricingNumber || '',
                     fechaCotizacion: toInputDate(orden.pricings?.[0]?.pricingDate),
                     cotizadoPor: pricedById || '',
-                    
+
                     numeroFacturacion: orden.billings?.[0]?.billingNumber || '',
                     fechaFacturacion: toInputDate(orden.billings?.[0]?.billingDate),
                     facturadoPor: billedById || '',
@@ -577,7 +578,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                     }
                 }));
 
-                
+
                 if (Array.isArray(orden.sparePartMaterials)) {
                     const repuestosData = orden.sparePartMaterials.map((spm, idx) => ({
                         id: idx + 1,
@@ -602,7 +603,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                         const factorVenta = Number(mp.factorVenta) || 1;
 
 
-                       
+
                         const insumos = Array.isArray(mp.supplies)
                             ? mp.supplies.map(sup => {
                                 const qty = Number(sup.cantidad) || 0;
@@ -619,12 +620,12 @@ const NuevaOrdenTrabajo = ({ user }) => {
                             })
                             : [];
 
-                        
+
                         const totalInsumos = insumos.reduce((s, i) => s + i.costoTotal, 0);
                         const unitInsumo = cantidad > 0 ? totalInsumos / cantidad : 0;
                         const unitConInsumos = costoManoUnit + unitInsumo;
 
-                       
+
                         const unitSell = roundToHundred(unitConInsumos / factorVenta);
                         const totalSell = roundToHundred(unitSell * cantidad);
 
@@ -701,22 +702,22 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
 
     const calcularTotales = () => {
-        
+
         const rawSubRep = repuestos.reduce((sum, r) => sum + (r.ventaTotal || 0), 0);
         const subtotalVentasRepuestos = roundToHundred(rawSubRep);
 
-       
+
         const rawSubMan = manoDeObra.reduce((sum, m) => sum + (m.totalSell || 0), 0);
         const subtotalVentasManoObra = roundToHundred(rawSubMan);
 
-      
+
         const subtotalVentas = subtotalVentasRepuestos + subtotalVentasManoObra;
 
-      
-        const iva = subtotalVentas * 0.19;
-        
 
-      
+        const iva = subtotalVentas * 0.19;
+
+
+
         const totalVenta = roundToHundred(subtotalVentas + iva);
 
         return {
@@ -733,7 +734,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
             ),
             subtotalVentasManoObra,
             subtotalCostos: roundToHundred(
-             
+
                 repuestos.reduce((sum, r) => sum + (r.costoTotal || 0), 0) +
                 manoDeObra.reduce((sum, m) => {
                     const costoMano = m.totalCost || 0;
@@ -755,7 +756,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
         const contactoPrincipal = contactosCliente.find(contacto => contacto.isPrincipalContact);
         const contactosSecundarios = contactosCliente.filter(contacto => !contacto.isPrincipalContact);
 
-       
+
         if (contactoPrincipal) {
             setFormulario(prev => ({
                 ...prev,
@@ -763,7 +764,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
             }));
         }
 
-        
+
         setContactosDisponibles(contactosSecundarios);
         setContactosSeleccionados([]);
     };
@@ -804,7 +805,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
     const handleGuardar = async () => {
 
-       if (user?.role?.name === 'Coordinador de Operaciones') {
+        if (user?.role?.name === 'Coordinador de Operaciones') {
             const invalidRepuestos = repuestos.some(r =>
                 Number(r.costoUnitario) <= 0 || Number(r.ventaUnitaria) <= 0
             );
@@ -816,10 +817,10 @@ const NuevaOrdenTrabajo = ({ user }) => {
             );
             if (invalidRepuestos || invalidMano || invalidInsumos) {
                 toast.info('Ningún costo o precio unitario puede ser 0 en repuestos, mano de obra o insumos.');
-            
+
             }
         }
-        
+
         if (
             !formulario.Asignado.length ||
             !formulario.orderStatusId ||
@@ -830,10 +831,10 @@ const NuevaOrdenTrabajo = ({ user }) => {
             return;
         }
 
-       
+
         if (
             !formulario.vehicule ||
-           
+
             !formulario.conductor
         ) {
             toast.error('Debes completar la sección "Información del Vehículo"');
@@ -841,7 +842,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
             return;
         }
 
-        
+
         if (
             !formulario.cliente
         ) {
@@ -880,18 +881,22 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
         const isTrabajoRealizado = formulario.orderStatusId === idTrabajoRealizado;
 
-        
+
         const payloadOrder = {
-           
-            assignTo: formulario.Asignado,            
-            outDate: isTrabajoRealizado
-                ? crearFechaValida(formulario.fechaSalida, formulario.horaSalida)
-                : null,
-            orderStatus: orderStatusValido,            
-            serviceTypes: serviceTypesValidos,         
-            client: formulario.cliente || null,        
-            vehicule: formulario.vehicule || null,     
-            assignedDriver: formulario.conductor || null, 
+
+            assignTo: formulario.Asignado,
+            outDate:
+                isTrabajoRealizado
+                    ? crearFechaValida(formulario.fechaSalida, formulario.horaSalida)
+                    : formulario.fechaSalida && formulario.horaSalida
+                        ? crearFechaValida(formulario.fechaSalida, formulario.horaSalida)
+                        : null,
+
+            orderStatus: orderStatusValido,
+            serviceTypes: serviceTypesValidos,
+            client: formulario.cliente || null,
+            vehicule: formulario.vehicule || null,
+            assignedDriver: formulario.conductor || null,
 
 
             kilometers: formulario.kmSalida ? parseInt(formulario.kmSalida) : null,
@@ -992,11 +997,11 @@ const NuevaOrdenTrabajo = ({ user }) => {
             prev.map(m => {
                 if (m.id !== manoId) return m;
 
-                
+
                 const nuevosInsumos = [...(m.insumos || [])];
                 const ins = { ...nuevosInsumos[idx], [campo]: valor };
 
-               
+
                 if (campo === 'cantidad' || campo === 'unitaryCost') {
                     const qty = parseFloat(ins.cantidad) || 0;
                     const cost = parseFloat(ins.unitaryCost) || 0;
@@ -1004,23 +1009,23 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 }
                 nuevosInsumos[idx] = ins;
 
-             
+
                 const cantidad = parseFloat(ins.cantidad) || 0;
                 const costoUnitMano = parseFloat(m.unitaryCost) || 0;
                 const factorVenta = parseFloat(m.sellFactor) || 1;
 
-                
+
                 const totalInsumos = nuevosInsumos.reduce((sum, i) => sum + (parseFloat(i.costoTotal) || 0), 0);
                 const unitInsumo = cantidad > 0 ? totalInsumos / cantidad : 0;
 
-                
+
                 const totalMano = costoUnitMano * cantidad;
 
-              
+
                 const unitManoMasIns = costoUnitMano + unitInsumo;
                 const totalManoMasIns = unitManoMasIns * cantidad;
 
-              
+
                 const unitSellRaw = unitManoMasIns / factorVenta;
                 const unitSell = roundToHundred(unitSellRaw);
                 const totalSell = roundToHundred(unitSell * cantidad);
@@ -1028,13 +1033,13 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 return {
                     ...m,
                     insumos: nuevosInsumos,
-                   
+
                     totalCost: parseFloat(totalMano.toFixed(2)),
                     unitaryCostInsumo: parseFloat(unitInsumo.toFixed(2)),
                     totalCostInsumos: parseFloat(totalInsumos.toFixed(2)),
                     unitCostWithSupplies: parseFloat(unitManoMasIns.toFixed(2)),
                     totalCostWithSupplies: parseFloat(totalManoMasIns.toFixed(2)),
-                    
+
                     unitSell,
                     totalSell,
                 };
@@ -1057,7 +1062,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
 
 
-    
+
     const agregarRepuesto = () => {
         const nuevoId = repuestos.length
             ? Math.max(...repuestos.map(r => r.id)) + 1
@@ -1229,10 +1234,10 @@ const NuevaOrdenTrabajo = ({ user }) => {
             prev.map(m => {
                 if (m.id !== id) return m;
 
-               
+
                 const copia = { ...m, [campo]: valor };
 
-              
+
                 const cantidad = Number(copia.cantidad) || 0;
                 const costMano = Number(copia.unitaryCost) || 0;
                 const factor = Number(copia.sellFactor) || 1;
@@ -1241,7 +1246,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
                 const unitInsumo = cantidad > 0 ? totalInsumos / cantidad : 0;
                 const unitConIns = costMano + unitInsumo;
 
-                
+
                 const unitSell = roundToHundred(unitConIns / factor);
                 const totalSell = roundToHundred(unitSell * cantidad);
 
@@ -1340,7 +1345,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
 
 
 
-   
+
     const subtotalCostosRepuestosRaw = repuestos
         .reduce((acc, r) => acc + (r.costoTotal || 0), 0);
     const subtotalCostosRepuestos = roundToHundred(subtotalCostosRepuestosRaw);
@@ -1349,7 +1354,7 @@ const NuevaOrdenTrabajo = ({ user }) => {
         .reduce((acc, r) => acc + (r.ventaTotal || 0), 0);
     const subtotalVentasRepuestos = roundToHundred(subtotalVentasRepuestosRaw);
 
- 
+
     const subtotalCostosManoObraRaw = manoDeObra
         .reduce((sum, m) => sum + (m.totalCostWithSupplies || 0), 0);
     const subtotalCostosManoObra = roundToHundred(subtotalCostosManoObraRaw);
@@ -1358,14 +1363,14 @@ const NuevaOrdenTrabajo = ({ user }) => {
         .reduce((sum, m) => sum + (m.totalSell || 0), 0);
     const subtotalVentasManoObra = roundToHundred(subtotalVentasManoObraRaw);
 
-  
+
     const subtotalCostos = subtotalCostosRepuestos + subtotalCostosManoObra;
 
     const subtotalVentasRaw = subtotalVentasRepuestos + subtotalVentasManoObra;
     const subtotalVentas = roundToHundred(subtotalVentasRaw);
 
     const iva = subtotalVentas * 0.19;
-    
+
 
     const totalVentaRaw = subtotalVentas + iva;
     const totalVenta = roundToHundred(totalVentaRaw);
