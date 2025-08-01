@@ -28,11 +28,45 @@ const Insumos = () => {
 
   const ITEMS_PER_PAGE = 6;
 
+  const fetchAllProviders = async () => {
+  let allProviders = [];
+  let offset = 0;
+  const limit = 10;
+
+  let hasMore = true;
+
+  while (hasMore) {
+    try {
+      const res = await axios.get(API_PROVIDERS, {
+        params: { limit, offset },
+      });
+
+      const data = res.data?.data || [];
+      const total = res.data?.total || 0;
+
+      allProviders = [...allProviders, ...data];
+      offset += limit;
+
+      if (offset >= total) {
+        hasMore = false;
+      }
+
+    } catch (err) {
+      console.error("❌ Error al cargar proveedores:", err);
+      toast.error("Error al cargar proveedores");
+      hasMore = false;
+    }
+  }
+
   
+  return allProviders;
+};
+
   useEffect(() => {
-    axios.get(API_PROVIDERS)
-      .then(res => setProveedores(res.data.data || res.data))
-      .catch(err => console.error('Error cargando proveedores:', err));
+   fetchAllProviders().then(data => {
+    
+    setProveedores(data);
+  });
   }, []);
 
  
